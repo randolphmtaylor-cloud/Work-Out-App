@@ -60,7 +60,7 @@ export const MOCK_EXERCISES: Exercise[] = [
 // ---------------------------------------------------------------
 export const MOCK_ACTIVE_PHASE: TrainingPhase = {
   id: "phase-2",
-  user_id: "demo-user",
+  user_id: "00000000-0000-4000-8000-000000000001",
   name: "Intensification",
   phase_type: "intensification",
   phase_number: 2,
@@ -76,7 +76,7 @@ export const MOCK_ACTIVE_PHASE: TrainingPhase = {
 export const MOCK_PHASES: TrainingPhase[] = [
   {
     id: "phase-1",
-    user_id: "demo-user",
+    user_id: "00000000-0000-4000-8000-000000000001",
     name: "Accumulation",
     phase_type: "accumulation",
     phase_number: 1,
@@ -95,21 +95,21 @@ export const MOCK_PHASES: TrainingPhase[] = [
 // Workout Sessions (last ~8 weeks)
 // ---------------------------------------------------------------
 export const MOCK_SESSIONS: WorkoutSession[] = [
-  { id: "s-1",  user_id: "demo-user", date: "2026-04-21", source: "manual", duration_minutes: 28, phase_id: "phase-2", created_at: "2026-04-21T09:00:00Z" },
-  { id: "s-2",  user_id: "demo-user", date: "2026-04-18", source: "manual", duration_minutes: 30, phase_id: "phase-2", created_at: "2026-04-18T09:00:00Z" },
-  { id: "s-3",  user_id: "demo-user", date: "2026-04-15", source: "manual", duration_minutes: 27, phase_id: "phase-2", created_at: "2026-04-15T09:00:00Z" },
-  { id: "s-4",  user_id: "demo-user", date: "2026-04-12", source: "manual", duration_minutes: 29, phase_id: "phase-2", created_at: "2026-04-12T09:00:00Z" },
-  { id: "s-5",  user_id: "demo-user", date: "2026-04-09", source: "manual", duration_minutes: 26, phase_id: "phase-2", created_at: "2026-04-09T09:00:00Z" },
-  { id: "s-6",  user_id: "demo-user", date: "2026-04-05", source: "import_text", duration_minutes: 30, phase_id: "phase-1", created_at: "2026-04-05T09:00:00Z" },
-  { id: "s-7",  user_id: "demo-user", date: "2026-04-01", source: "import_text", duration_minutes: 28, phase_id: "phase-1", created_at: "2026-04-01T09:00:00Z" },
-  { id: "s-8",  user_id: "demo-user", date: "2026-03-28", source: "import_text", duration_minutes: 29, phase_id: "phase-1", created_at: "2026-03-28T09:00:00Z" },
-  { id: "s-9",  user_id: "demo-user", date: "2026-03-25", source: "import_text", duration_minutes: 27, phase_id: "phase-1", created_at: "2026-03-25T09:00:00Z" },
-  { id: "s-10", user_id: "demo-user", date: "2026-03-22", source: "import_text", duration_minutes: 30, phase_id: "phase-1", created_at: "2026-03-22T09:00:00Z" },
-  { id: "s-11", user_id: "demo-user", date: "2026-03-18", source: "import_text", duration_minutes: 25, phase_id: "phase-1", created_at: "2026-03-18T09:00:00Z" },
-  { id: "s-12", user_id: "demo-user", date: "2026-03-14", source: "import_text", duration_minutes: 28, phase_id: "phase-1", created_at: "2026-03-14T09:00:00Z" },
-  { id: "s-13", user_id: "demo-user", date: "2026-03-10", source: "import_text", duration_minutes: 27, phase_id: "phase-1", created_at: "2026-03-10T09:00:00Z" },
-  { id: "s-14", user_id: "demo-user", date: "2026-03-06", source: "import_text", duration_minutes: 29, phase_id: "phase-1", created_at: "2026-03-06T09:00:00Z" },
-  { id: "s-15", user_id: "demo-user", date: "2026-03-02", source: "import_text", duration_minutes: 26, phase_id: "phase-1", created_at: "2026-03-02T09:00:00Z" },
+  { id: "s-1",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-04-21", source: "manual", duration_minutes: 28, phase_id: "phase-2", created_at: "2026-04-21T09:00:00Z" },
+  { id: "s-2",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-04-18", source: "manual", duration_minutes: 30, phase_id: "phase-2", created_at: "2026-04-18T09:00:00Z" },
+  { id: "s-3",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-04-15", source: "manual", duration_minutes: 27, phase_id: "phase-2", created_at: "2026-04-15T09:00:00Z" },
+  { id: "s-4",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-04-12", source: "manual", duration_minutes: 29, phase_id: "phase-2", created_at: "2026-04-12T09:00:00Z" },
+  { id: "s-5",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-04-09", source: "manual", duration_minutes: 26, phase_id: "phase-2", created_at: "2026-04-09T09:00:00Z" },
+  { id: "s-6",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-04-05", source: "import_text", duration_minutes: 30, phase_id: "phase-1", created_at: "2026-04-05T09:00:00Z" },
+  { id: "s-7",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-04-01", source: "import_text", duration_minutes: 28, phase_id: "phase-1", created_at: "2026-04-01T09:00:00Z" },
+  { id: "s-8",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-28", source: "import_text", duration_minutes: 29, phase_id: "phase-1", created_at: "2026-03-28T09:00:00Z" },
+  { id: "s-9",  user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-25", source: "import_text", duration_minutes: 27, phase_id: "phase-1", created_at: "2026-03-25T09:00:00Z" },
+  { id: "s-10", user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-22", source: "import_text", duration_minutes: 30, phase_id: "phase-1", created_at: "2026-03-22T09:00:00Z" },
+  { id: "s-11", user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-18", source: "import_text", duration_minutes: 25, phase_id: "phase-1", created_at: "2026-03-18T09:00:00Z" },
+  { id: "s-12", user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-14", source: "import_text", duration_minutes: 28, phase_id: "phase-1", created_at: "2026-03-14T09:00:00Z" },
+  { id: "s-13", user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-10", source: "import_text", duration_minutes: 27, phase_id: "phase-1", created_at: "2026-03-10T09:00:00Z" },
+  { id: "s-14", user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-06", source: "import_text", duration_minutes: 29, phase_id: "phase-1", created_at: "2026-03-06T09:00:00Z" },
+  { id: "s-15", user_id: "00000000-0000-4000-8000-000000000001", date: "2026-03-02", source: "import_text", duration_minutes: 26, phase_id: "phase-1", created_at: "2026-03-02T09:00:00Z" },
 ];
 
 // ---------------------------------------------------------------
@@ -173,7 +173,7 @@ export const MOCK_SETS: WorkoutSet[] = [
 // ---------------------------------------------------------------
 export const MOCK_TODAY_ROUTINE: GeneratedRoutine = {
   id: "routine-today",
-  user_id: "demo-user",
+  user_id: "00000000-0000-4000-8000-000000000001",
   phase_id: "phase-2",
   generated_at: new Date().toISOString(),
   date: new Date().toISOString().split("T")[0],
@@ -233,7 +233,7 @@ export const MOCK_TODAY_ROUTINE: GeneratedRoutine = {
 // ---------------------------------------------------------------
 export const MOCK_LATEST_SUMMARY: WeeklySummary = {
   id: "summary-1",
-  user_id: "demo-user",
+  user_id: "00000000-0000-4000-8000-000000000001",
   week_start: "2026-04-14",
   week_end: "2026-04-20",
   summary_text: `**Strong week.** You hit 3 sessions and stayed within the 30-minute target each time.

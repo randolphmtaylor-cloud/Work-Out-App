@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getActivePhase, advancePhaseInStore } from "@/lib/data";
 import { buildNextPhase } from "@/lib/routine-engine";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 export async function POST() {
   const current = await getActivePhase(DEMO_USER);

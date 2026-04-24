@@ -4,8 +4,9 @@ import { normalizeExerciseName } from "@/lib/parsers/normalize";
 import { MOCK_EXERCISES } from "@/lib/mock-data";
 import { insertSessionWithSets, getActivePhase } from "@/lib/data";
 import { WorkoutSession, WorkoutSet } from "@/types";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 // exercise canonical_name → id
 const buildExMap = (): Map<string, string> => {

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSessions, getAllSets } from "@/lib/data";
 import { computeAnalytics } from "@/lib/analytics";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 export async function GET() {
   const [sessions, sets] = await Promise.all([

@@ -6,8 +6,9 @@ import { generateRoutine } from "@/lib/routine-engine";
 import { formatDisplay } from "@/lib/utils/dates";
 import { GenerateRoutineButton } from "@/components/workout/generate-routine-button";
 import { SessionLogger } from "@/components/workout/session-logger";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 const TYPE_BADGE: Record<string, "push" | "pull" | "legs" | "core" | "secondary"> = {
   push: "push", pull: "pull", legs: "legs", core: "core",

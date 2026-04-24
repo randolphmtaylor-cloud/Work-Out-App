@@ -6,8 +6,9 @@ import { SummaryPanel } from "@/components/coach/summary-panel";
 import { isAIConfigured } from "@/lib/ai/config";
 import { getLatestSummary, getActivePhase } from "@/lib/data";
 import { formatShort } from "@/lib/utils/dates";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 const QUICK_QUESTIONS = [
   "How am I doing?",

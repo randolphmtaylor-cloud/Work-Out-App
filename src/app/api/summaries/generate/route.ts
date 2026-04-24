@@ -4,8 +4,9 @@ import { AI_NOT_CONFIGURED_MESSAGE, isAIConfigured } from "@/lib/ai/config";
 import { getActivePhase, getSessions, getAllSets, saveSummary } from "@/lib/data";
 import { MOCK_EXERCISES } from "@/lib/mock-data";
 import { WeeklySummaryStats, WeeklySummary } from "@/types";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 function isoWeekBounds(): { start: string; end: string } {
   const now = new Date();

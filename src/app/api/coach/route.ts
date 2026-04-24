@@ -3,8 +3,9 @@ import { z } from "zod";
 import { streamCoachAnswer } from "@/lib/ai/client";
 import { AI_NOT_CONFIGURED_MESSAGE, isAIConfigured } from "@/lib/ai/config";
 import { getActivePhase, getAllSets, getSessions } from "@/lib/data";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 const RequestSchema = z.object({
   question: z.string().min(1).max(500),

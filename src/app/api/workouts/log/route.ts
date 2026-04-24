@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { insertSessionWithSets, markRoutineComplete, getActivePhase } from "@/lib/data";
 import { WorkoutSession, WorkoutSet } from "@/types";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 const SetSchema = z.object({
   exercise_id: z.string(),

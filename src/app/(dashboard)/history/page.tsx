@@ -4,8 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { getSessions, getSetsForSessions, getActivePhase } from "@/lib/data";
 import { MOCK_EXERCISES } from "@/lib/mock-data";
 import { formatDisplay } from "@/lib/utils/dates";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 export default async function HistoryPage() {
   const sessions = await getSessions(DEMO_USER);

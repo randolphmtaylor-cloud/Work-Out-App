@@ -12,18 +12,28 @@ import {
   getAllSets,
 } from "@/lib/data";
 import { computeAnalytics } from "@/lib/analytics";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 import { formatDisplay, formatShort, differenceInDays, parseISO } from "@/lib/utils/dates";
-
-const DEMO_USER = "demo-user";
+import type { GeneratedRoutine, TrainingPhase, WeeklySummary, WorkoutSession, WorkoutSet } from "@/types";
 
 export default async function DashboardPage() {
-  const [phase, sessions, summary, todayRoutine, allSets] = await Promise.all([
-    getActivePhase(DEMO_USER),
-    getRecentSessions(DEMO_USER, 30),
-    getLatestSummary(DEMO_USER),
-    getTodayRoutine(DEMO_USER),
-    getAllSets(DEMO_USER),
-  ]);
+  let phase: TrainingPhase | null = null;
+  let sessions: WorkoutSession[] = [];
+  let summary: WeeklySummary | null = null;
+  let todayRoutine: GeneratedRoutine | null = null;
+  let allSets: WorkoutSet[] = [];
+
+  try {
+    [phase, sessions, summary, todayRoutine, allSets] = await Promise.all([
+      getActivePhase(DEMO_USER_ID),
+      getRecentSessions(DEMO_USER_ID, 30),
+      getLatestSummary(DEMO_USER_ID),
+      getTodayRoutine(DEMO_USER_ID),
+      getAllSets(DEMO_USER_ID),
+    ]);
+  } catch (error) {
+    console.error("[dashboard] failed to load data, rendering fallback", error);
+  }
 
   const analytics = computeAnalytics(sessions, allSets);
   const today = new Date().toISOString().split("T")[0];

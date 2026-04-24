@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateRoutine } from "@/lib/routine-engine";
 import { getActivePhase, getRecentSessions, getAllSets, saveGeneratedRoutine } from "@/lib/data";
 import { WorkoutTag } from "@/types";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 export async function POST(req: NextRequest) {
   let workoutType: WorkoutTag | undefined;

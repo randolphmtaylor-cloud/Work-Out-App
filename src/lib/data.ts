@@ -16,6 +16,15 @@ export const isDemo = () =>
   !process.env.NEXT_PUBLIC_SUPABASE_URL ||
   process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder");
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isValidUuid = (value: string) => UUID_REGEX.test(value);
+
+function logSupabaseError(context: string, error: unknown) {
+  console.error(`[data] ${context}`, error);
+}
+
 // ---------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------
@@ -24,6 +33,10 @@ export async function getSessions(userId: string): Promise<WorkoutSession[]> {
     const { storeSessions } = await import("@/lib/store");
     return storeSessions();
   }
+  if (!isValidUuid(userId)) {
+    console.error("[data] getSessions invalid userId", userId);
+    return [];
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -31,7 +44,10 @@ export async function getSessions(userId: string): Promise<WorkoutSession[]> {
     .select("*")
     .eq("user_id", userId)
     .order("date", { ascending: false });
-  if (error) throw error;
+  if (error) {
+    logSupabaseError("getSessions failed", error);
+    return [];
+  }
   return data ?? [];
 }
 
@@ -48,13 +64,18 @@ export async function getSetsForSessions(sessionIds: string[]): Promise<WorkoutS
     const { storeSetsForSessions } = await import("@/lib/store");
     return storeSetsForSessions(sessionIds);
   }
+  const validSessionIds = sessionIds.filter(isValidUuid);
+  if (validSessionIds.length === 0) return [];
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("workout_sets")
     .select("*")
-    .in("session_id", sessionIds);
-  if (error) throw error;
+    .in("session_id", validSessionIds);
+  if (error) {
+    logSupabaseError("getSetsForSessions failed", error);
+    return [];
+  }
   return data ?? [];
 }
 
@@ -63,13 +84,27 @@ export async function getAllSets(userId: string): Promise<WorkoutSet[]> {
     const { storeSets } = await import("@/lib/store");
     return storeSets();
   }
+  if (!isValidUuid(userId)) {
+    console.error("[data] getAllSets invalid userId", userId);
+    return [];
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data: sessions } = await supabase.from("workout_sessions").select("id").eq("user_id", userId);
+  const { data: sessions, error: sessionsError } = await supabase
+    .from("workout_sessions")
+    .select("id")
+    .eq("user_id", userId);
+  if (sessionsError) {
+    logSupabaseError("getAllSets session lookup failed", sessionsError);
+    return [];
+  }
   const ids = (sessions ?? []).map((s: { id: string }) => s.id);
   if (!ids.length) return [];
   const { data, error } = await supabase.from("workout_sets").select("*").in("session_id", ids);
-  if (error) throw error;
+  if (error) {
+    logSupabaseError("getAllSets set lookup failed", error);
+    return [];
+  }
   return data ?? [];
 }
 
@@ -79,9 +114,14 @@ export async function updateSet(id: string, patch: Partial<WorkoutSet>): Promise
     storeUpdateSet(id, patch);
     return;
   }
+  if (!isValidUuid(id)) {
+    console.error("[data] updateSet invalid id", id);
+    return;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  await supabase.from("workout_sets").update(patch).eq("id", id);
+  const { error } = await supabase.from("workout_sets").update(patch).eq("id", id);
+  if (error) logSupabaseError("updateSet failed", error);
 }
 
 // ---------------------------------------------------------------
@@ -92,9 +132,22 @@ export async function getActivePhase(userId: string): Promise<TrainingPhase | nu
     const { storeActivePhase } = await import("@/lib/store");
     return storeActivePhase();
   }
+  if (!isValidUuid(userId)) {
+    console.error("[data] getActivePhase invalid userId", userId);
+    return null;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data } = await supabase.from("training_phases").select("*").eq("user_id", userId).eq("is_active", true).single();
+  const { data, error } = await supabase
+    .from("training_phases")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .single();
+  if (error) {
+    logSupabaseError("getActivePhase failed", error);
+    return null;
+  }
   return data ?? null;
 }
 
@@ -103,10 +156,17 @@ export async function getPhases(userId: string): Promise<TrainingPhase[]> {
     const { storePhases } = await import("@/lib/store");
     return storePhases();
   }
+  if (!isValidUuid(userId)) {
+    console.error("[data] getPhases invalid userId", userId);
+    return [];
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
   const { data, error } = await supabase.from("training_phases").select("*").eq("user_id", userId).order("start_date", { ascending: false });
-  if (error) throw error;
+  if (error) {
+    logSupabaseError("getPhases failed", error);
+    return [];
+  }
   return data ?? [];
 }
 
@@ -116,10 +176,22 @@ export async function advancePhaseInStore(next: TrainingPhase): Promise<void> {
     storeAdvancePhase(next);
     return;
   }
+  if (!isValidUuid(next.user_id)) {
+    console.error("[data] advancePhaseInStore invalid userId", next.user_id);
+    return;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  await supabase.from("training_phases").update({ is_active: false }).eq("user_id", next.user_id);
-  await supabase.from("training_phases").insert(next);
+  const { error: deactivateError } = await supabase
+    .from("training_phases")
+    .update({ is_active: false })
+    .eq("user_id", next.user_id);
+  if (deactivateError) {
+    logSupabaseError("advancePhaseInStore deactivate failed", deactivateError);
+    return;
+  }
+  const { error: insertError } = await supabase.from("training_phases").insert(next);
+  if (insertError) logSupabaseError("advancePhaseInStore insert failed", insertError);
 }
 
 // ---------------------------------------------------------------
@@ -130,10 +202,14 @@ export async function getTodayRoutine(userId: string): Promise<GeneratedRoutine 
     const { storeTodayRoutine } = await import("@/lib/store");
     return storeTodayRoutine(userId);
   }
+  if (!isValidUuid(userId)) {
+    console.error("[data] getTodayRoutine invalid userId", userId);
+    return null;
+  }
   const today = new Date().toISOString().split("T")[0];
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("generated_routines")
     .select("*")
     .eq("user_id", userId)
@@ -141,6 +217,10 @@ export async function getTodayRoutine(userId: string): Promise<GeneratedRoutine 
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
+  if (error) {
+    logSupabaseError("getTodayRoutine failed", error);
+    return null;
+  }
   return data ?? null;
 }
 
@@ -150,9 +230,14 @@ export async function saveGeneratedRoutine(routine: GeneratedRoutine): Promise<v
     storeUpsertRoutine(routine);
     return;
   }
+  if (!isValidUuid(routine.user_id)) {
+    console.error("[data] saveGeneratedRoutine invalid userId", routine.user_id);
+    return;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  await supabase.from("generated_routines").upsert(routine);
+  const { error } = await supabase.from("generated_routines").upsert(routine);
+  if (error) logSupabaseError("saveGeneratedRoutine failed", error);
 }
 
 export async function markRoutineComplete(routineId: string, sessionId: string): Promise<void> {
@@ -161,9 +246,17 @@ export async function markRoutineComplete(routineId: string, sessionId: string):
     storeMarkRoutineComplete(routineId, sessionId);
     return;
   }
+  if (!isValidUuid(routineId) || !isValidUuid(sessionId)) {
+    console.error("[data] markRoutineComplete invalid ids", { routineId, sessionId });
+    return;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  await supabase.from("generated_routines").update({ was_completed: true, completed_session_id: sessionId }).eq("id", routineId);
+  const { error } = await supabase
+    .from("generated_routines")
+    .update({ was_completed: true, completed_session_id: sessionId })
+    .eq("id", routineId);
+  if (error) logSupabaseError("markRoutineComplete failed", error);
 }
 
 // ---------------------------------------------------------------
@@ -174,9 +267,23 @@ export async function getLatestSummary(userId: string): Promise<WeeklySummary | 
     const { storeLatestSummary } = await import("@/lib/store");
     return storeLatestSummary(userId);
   }
+  if (!isValidUuid(userId)) {
+    console.error("[data] getLatestSummary invalid userId", userId);
+    return null;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data } = await supabase.from("weekly_summaries").select("*").eq("user_id", userId).order("week_start", { ascending: false }).limit(1).single();
+  const { data, error } = await supabase
+    .from("weekly_summaries")
+    .select("*")
+    .eq("user_id", userId)
+    .order("week_start", { ascending: false })
+    .limit(1)
+    .single();
+  if (error) {
+    logSupabaseError("getLatestSummary failed", error);
+    return null;
+  }
   return data ?? null;
 }
 
@@ -186,9 +293,14 @@ export async function saveSummary(summary: WeeklySummary): Promise<void> {
     storeUpsertSummary(summary);
     return;
   }
+  if (!isValidUuid(summary.user_id)) {
+    console.error("[data] saveSummary invalid userId", summary.user_id);
+    return;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  await supabase.from("weekly_summaries").upsert(summary);
+  const { error } = await supabase.from("weekly_summaries").upsert(summary);
+  if (error) logSupabaseError("saveSummary failed", error);
 }
 
 // ---------------------------------------------------------------
@@ -223,12 +335,19 @@ export async function insertSessionWithSets(
     storeInsertSets(sets);
     return;
   }
+  if (!isValidUuid(session.user_id)) {
+    console.error("[data] insertSessionWithSets invalid userId", session.user_id);
+    return;
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
   const { error: sessionError } = await supabase.from("workout_sessions").insert(session);
-  if (sessionError) throw sessionError;
+  if (sessionError) {
+    logSupabaseError("insertSessionWithSets session insert failed", sessionError);
+    return;
+  }
   if (sets.length > 0) {
     const { error: setsError } = await supabase.from("workout_sets").insert(sets);
-    if (setsError) throw setsError;
+    if (setsError) logSupabaseError("insertSessionWithSets sets insert failed", setsError);
   }
 }

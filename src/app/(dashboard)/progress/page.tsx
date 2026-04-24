@@ -9,8 +9,9 @@ import { TrendChart } from "@/components/progress/trend-chart";
 import { EquipmentUsageChart } from "@/components/progress/equipment-usage-chart";
 import { TopSetsTable } from "@/components/progress/top-sets-table";
 import { VolumeChart } from "@/components/progress/volume-chart";
+import { DEMO_USER_ID } from "@/lib/constants/demo";
 
-const DEMO_USER = "demo-user";
+const DEMO_USER = DEMO_USER_ID;
 
 export default async function ProgressPage() {
   const [sessions, sets] = await Promise.all([
