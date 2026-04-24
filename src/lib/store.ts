@@ -12,6 +12,7 @@ import {
   TrainingPhase,
   GeneratedRoutine,
   WeeklySummary,
+  Exercise,
 } from "@/types";
 import {
   MOCK_SESSIONS,
@@ -19,6 +20,7 @@ import {
   MOCK_PHASES,
   MOCK_ACTIVE_PHASE,
   MOCK_LATEST_SUMMARY,
+  MOCK_EXERCISES,
 } from "@/lib/mock-data";
 
 // ---- Mutable store (module-level, server-side only) ----
@@ -28,6 +30,7 @@ const store = {
   phases:   [...MOCK_PHASES]   as TrainingPhase[],
   routines: []                 as GeneratedRoutine[],
   summaries: [MOCK_LATEST_SUMMARY] as WeeklySummary[],
+  exercises: [...MOCK_EXERCISES] as Exercise[],
 };
 
 // ---- Sessions ----
@@ -118,4 +121,42 @@ export function storeUpsertSummary(summary: WeeklySummary): void {
     (s) => !(s.user_id === summary.user_id && s.week_start === summary.week_start)
   );
   store.summaries.push(summary);
+}
+
+// ---- Exercises ----
+export function storeExercises(): Exercise[] {
+  return [...store.exercises];
+}
+
+export function storeFindExerciseByCanonical(canonicalName: string): Exercise | null {
+  return store.exercises.find((e) => e.canonical_name === canonicalName) ?? null;
+}
+
+export function storeCreateUnreviewedExercise(name: string, aliases: string[]): Exercise {
+  const canonical = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+  const existing = storeFindExerciseByCanonical(canonical);
+  if (existing) return existing;
+
+  const created: Exercise = {
+    id: crypto.randomUUID(),
+    name,
+    canonical_name: canonical,
+    aliases: Array.from(new Set(aliases.map((a) => a.trim()).filter(Boolean))),
+    muscle_groups: [],
+    tags: [],
+    notes: "status:unreviewed",
+    status: "unreviewed",
+    created_at: new Date().toISOString(),
+  };
+
+  store.exercises.push(created);
+  return created;
+}
+
+export function storeUnreviewedExercises(): Exercise[] {
+  return store.exercises.filter((e) => e.status === "unreviewed" || e.notes?.includes("status:unreviewed"));
 }

@@ -8,6 +8,7 @@ interface ImportResult {
   sessions_parsed: number;
   sets_parsed: number;
   warnings: string[];
+  unreviewed_created?: string[];
 }
 
 export function ImportTextForm() {
@@ -60,6 +61,14 @@ export function ImportTextForm() {
           <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
             <p className="font-medium">Imported {result.sessions_parsed} session{result.sessions_parsed !== 1 ? "s" : ""} · {result.sets_parsed} sets</p>
+            {(result.unreviewed_created?.length ?? 0) > 0 && (
+              <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                <p className="font-medium">New unreviewed exercises created:</p>
+                <ul className="mt-1 space-y-0.5">
+                  {result.unreviewed_created!.map((name, i) => <li key={i}>- {name}</li>)}
+                </ul>
+              </div>
+            )}
             {result.warnings.length > 0 && (
               <ul className="mt-1 space-y-0.5 text-xs text-green-600">
                 {result.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}

@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseWorkoutText } from "@/lib/parsers/text-parser";
 import { normalizeExerciseName } from "@/lib/parsers/normalize";
-import { MOCK_EXERCISES } from "@/lib/mock-data";
-import { insertSessionWithSets, getActivePhase } from "@/lib/data";
+import { insertSessionWithSets, getActivePhase, getExercises, createUnreviewedExercise } from "@/lib/data";
 import { WorkoutSession, WorkoutSet } from "@/types";
 import { DEMO_USER_ID } from "@/lib/constants/demo";
 
 const DEMO_USER = DEMO_USER_ID;
 
 // exercise canonical_name → id
-const buildExMap = (): Map<string, string> => {
+const buildExMap = (exercises: Array<{ id: string; canonical_name: string; name: string; aliases: string[] }>): Map<string, string> => {
   const m = new Map<string, string>();
-  for (const ex of MOCK_EXERCISES) {
+  for (const ex of exercises) {
     m.set(ex.canonical_name, ex.id);
     m.set(ex.name.toLowerCase(), ex.id);
     for (const a of ex.aliases) m.set(a.toLowerCase(), ex.id);
@@ -63,9 +62,10 @@ export async function POST(req: NextRequest) {
   const { days, warnings } = parseWorkoutText(rawText);
   if (!days.length) return NextResponse.json({ error: "No sessions found in input", warnings }, { status: 422 });
 
-  const exMap = buildExMap();
+  const exercises = await getExercises();
+  const exMap = buildExMap(exercises);
   const phase = await getActivePhase(DEMO_USER);
-  const unmatched: string[] = [];
+  const createdUnreviewed = new Set<string>();
   let totalSessions = 0;
   let totalSets = 0;
 
@@ -74,12 +74,23 @@ export async function POST(req: NextRequest) {
     const sets: WorkoutSet[] = [];
 
     for (const ex of day.exercises) {
-      const { canonical_name } = normalizeExerciseName(ex.exercise_name);
-      const exerciseId = canonical_name ? exMap.get(canonical_name) : undefined;
+      const { canonical_name } = normalizeExerciseName(ex.exercise_name, exercises);
+      let exerciseId = canonical_name ? exMap.get(canonical_name) : undefined;
 
       if (!exerciseId) {
-        unmatched.push(ex.exercise_name);
-        // Still record unknown exercise as a note on a "null" set — skipped for now
+        const created = await createUnreviewedExercise(ex.exercise_name, [ex.exercise_name]);
+        exerciseId = created.exercise.id;
+        exMap.set(created.exercise.canonical_name, created.exercise.id);
+        exMap.set(created.exercise.name.toLowerCase(), created.exercise.id);
+        for (const alias of created.exercise.aliases) {
+          exMap.set(alias.toLowerCase(), created.exercise.id);
+        }
+        if (created.created) {
+          createdUnreviewed.add(created.exercise.name);
+        }
+      }
+      if (!exerciseId) {
+        warnings.push(`Could not assign exercise id for "${ex.exercise_name}"`);
         continue;
       }
 
@@ -116,9 +127,10 @@ export async function POST(req: NextRequest) {
     success: true,
     sessions_parsed: totalSessions,
     sets_parsed: totalSets,
+    unreviewed_created: Array.from(createdUnreviewed),
     warnings: [
       ...warnings,
-      ...unmatched.map((n) => `Unrecognised exercise skipped: "${n}"`),
+      ...Array.from(createdUnreviewed).map((n) => `Created unreviewed exercise: "${n}"`),
     ],
   });
 }

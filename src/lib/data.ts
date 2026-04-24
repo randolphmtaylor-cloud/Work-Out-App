@@ -7,8 +7,8 @@ import {
   TrainingPhase,
   GeneratedRoutine,
   WeeklySummary,
-  Exercise,
   Equipment,
+  Exercise,
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
 
@@ -23,6 +23,17 @@ const isValidUuid = (value: string) => UUID_REGEX.test(value);
 
 function logSupabaseError(context: string, error: unknown) {
   console.error(`[data] ${context}`, error);
+}
+
+function toCanonicalName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function mapExerciseStatus(notes?: string): Exercise["status"] {
+  return notes?.includes("status:unreviewed") ? "unreviewed" : "active";
 }
 
 // ---------------------------------------------------------------
@@ -307,11 +318,21 @@ export async function saveSummary(summary: WeeklySummary): Promise<void> {
 // Exercises / Equipment
 // ---------------------------------------------------------------
 export async function getExercises(): Promise<Exercise[]> {
-  if (isDemo()) return MOCK_EXERCISES;
+  if (isDemo()) {
+    const { storeExercises } = await import("@/lib/store");
+    return storeExercises();
+  }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data } = await supabase.from("exercise_definitions").select("*");
-  return data ?? MOCK_EXERCISES;
+  const { data, error } = await supabase.from("exercise_definitions").select("*");
+  if (error) {
+    logSupabaseError("getExercises failed", error);
+    return MOCK_EXERCISES;
+  }
+  return (data ?? MOCK_EXERCISES).map((exercise) => ({
+    ...exercise,
+    status: mapExerciseStatus(exercise.notes),
+  }));
 }
 
 export async function getEquipment(): Promise<Equipment[]> {
@@ -320,6 +341,90 @@ export async function getEquipment(): Promise<Equipment[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("equipment").select("*");
   return data ?? MOCK_EQUIPMENT;
+}
+
+export async function createUnreviewedExercise(
+  name: string,
+  aliases: string[] = []
+): Promise<{ exercise: Exercise; created: boolean }> {
+  const canonicalName = toCanonicalName(name);
+  if (!canonicalName) {
+    throw new Error("Invalid exercise name");
+  }
+
+  if (isDemo()) {
+    const { storeFindExerciseByCanonical, storeCreateUnreviewedExercise } = await import("@/lib/store");
+    const existing = storeFindExerciseByCanonical(canonicalName);
+    if (existing) {
+      return { exercise: existing, created: false };
+    }
+    const exercise = storeCreateUnreviewedExercise(name, aliases);
+    return { exercise, created: true };
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+
+  const { data: existing, error: existingError } = await supabase
+    .from("exercise_definitions")
+    .select("*")
+    .eq("canonical_name", canonicalName)
+    .maybeSingle();
+  if (existingError) {
+    logSupabaseError("createUnreviewedExercise existing lookup failed", existingError);
+  }
+  if (existing) {
+    return {
+      exercise: {
+        ...existing,
+        status: mapExerciseStatus(existing.notes),
+      },
+      created: false,
+    };
+  }
+
+  const payload = {
+    id: crypto.randomUUID(),
+    name,
+    canonical_name: canonicalName,
+    aliases: Array.from(new Set(aliases.map((a) => a.trim()).filter(Boolean))),
+    muscle_groups: [],
+    tags: [],
+    notes: "status:unreviewed",
+    created_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("exercise_definitions")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    logSupabaseError("createUnreviewedExercise insert failed", error);
+    return {
+      exercise: {
+        id: payload.id,
+        name: payload.name,
+        canonical_name: payload.canonical_name,
+        aliases: payload.aliases,
+        muscle_groups: [],
+        tags: [],
+        notes: payload.notes,
+        status: "unreviewed",
+        created_at: payload.created_at,
+      },
+      created: true,
+    };
+  }
+
+  return {
+    exercise: {
+      ...data,
+      status: "unreviewed",
+    },
+    created: true,
+  };
 }
 
 // ---------------------------------------------------------------

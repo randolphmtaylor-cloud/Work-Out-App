@@ -38,6 +38,7 @@ export type EquipmentCategory =
 export type PhaseType = "accumulation" | "intensification" | "density";
 
 export type WorkoutSource = "import_text" | "import_docx" | "import_xlsx" | "manual" | "generated";
+export type ExerciseStatus = "active" | "unreviewed";
 
 // ---------------------------------------------------------------
 // Equipment
@@ -60,6 +61,7 @@ export interface Exercise {
   name: string;
   canonical_name: string;
   aliases: string[];
+  status?: ExerciseStatus;
   equipment_id?: string;
   equipment?: Equipment;
   muscle_groups: MuscleGroup[];
