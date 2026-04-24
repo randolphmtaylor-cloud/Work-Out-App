@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CoachChat } from "@/components/coach/coach-chat";
 import { SummaryPanel } from "@/components/coach/summary-panel";
+import { isAIConfigured } from "@/lib/ai/config";
 import { getLatestSummary, getActivePhase } from "@/lib/data";
 import { formatShort } from "@/lib/utils/dates";
 
@@ -19,6 +20,7 @@ const QUICK_QUESTIONS = [
 ];
 
 export default async function CoachPage() {
+  const aiEnabled = isAIConfigured();
   const [summary, phase] = await Promise.all([
     getLatestSummary(DEMO_USER),
     getActivePhase(DEMO_USER),
@@ -29,15 +31,17 @@ export default async function CoachPage() {
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">AI Coach</h1>
         <p className="text-sm text-zinc-500 mt-0.5">
-          Ask anything about your training. Answers are grounded in your real data.
+          {aiEnabled
+            ? "Ask anything about your training. Answers are grounded in your real data."
+            : "AI features are not configured yet. Add ANTHROPIC_API_KEY to enable coaching."}
         </p>
       </div>
 
       {/* Weekly summary */}
-      <SummaryPanel summary={summary} phase={phase} />
+      <SummaryPanel summary={summary} phase={phase} aiEnabled={aiEnabled} />
 
       {/* Chat */}
-      <CoachChat quickQuestions={QUICK_QUESTIONS} />
+      <CoachChat quickQuestions={QUICK_QUESTIONS} aiEnabled={aiEnabled} />
     </div>
   );
 }

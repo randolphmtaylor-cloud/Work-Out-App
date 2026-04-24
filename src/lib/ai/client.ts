@@ -9,6 +9,7 @@
 //   POST /api/v1/ai/summary and POST /api/v1/ai/chat
 // ============================================================
 import Anthropic from "@anthropic-ai/sdk";
+import { AI_NOT_CONFIGURED_MESSAGE, isAIConfigured } from "@/lib/ai/config";
 import {
   WorkoutSession,
   WorkoutSet,
@@ -18,9 +19,6 @@ import {
 import { computeAnalytics, buildAnalyticsBrief, buildSessionsText } from "@/lib/analytics";
 
 const getClient = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-export const isAIConfigured = () =>
-  Boolean(process.env.ANTHROPIC_API_KEY?.startsWith("sk-ant"));
 
 // ---------------------------------------------------------------
 // System prompt — shared by summary + chat
@@ -182,6 +180,8 @@ function buildFallbackSummary(
   const consistencyLine = `**Consistency:** ${analytics.consistency.overall_pct}% of weeks active, ${analytics.consistency.current_streak}-week current streak.`;
 
   return [
+    `**${AI_NOT_CONFIGURED_MESSAGE}.**`,
+    "",
     `**Week summary — ${plural(stats.sessions_completed, "session")}, ${plural(stats.total_sets, "set")}, ${Math.round(stats.total_volume_lbs / 1000)}k lbs volume.**`,
     "",
     phaseLine,
@@ -189,7 +189,7 @@ function buildFallbackSummary(
     stalledLine,
     consistencyLine,
     "",
-    `*Add \`ANTHROPIC_API_KEY\` to .env.local for AI-generated coaching insights.*`,
+    `*Set \`ANTHROPIC_API_KEY\` in \`.env.local\` to enable AI coaching insights.*`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -208,7 +208,7 @@ function buildFallbackAnswer(
     const top = analytics.topSets.slice(0, 3).map((t) =>
       `${t.exercise_name}: ~${t.estimated_1rm}lb 1RM`
     ).join(", ");
-    return `**${analytics.totalSessions} sessions logged.** Consistency: ${analytics.consistency.overall_pct}% of weeks. Current streak: ${analytics.consistency.current_streak} weeks.\n\nStrong lifts: ${top || "not enough data yet"}.\n\n*Connect Anthropic API for deeper coaching insights.*`;
+    return `**${AI_NOT_CONFIGURED_MESSAGE}.**\n\n**${analytics.totalSessions} sessions logged.** Consistency: ${analytics.consistency.overall_pct}% of weeks. Current streak: ${analytics.consistency.current_streak} weeks.\n\nStrong lifts: ${top || "not enough data yet"}.`;
   }
 
   if (q.match(/incline|bench|chest/)) {
@@ -248,5 +248,5 @@ function buildFallbackAnswer(
     return `**Strongest lift (by estimated 1RM):** ${top.exercise_name} — ${top.weight_lbs > 0 ? `${top.weight_lbs}lbs × ${top.reps}r` : `${top.reps}r BW`} → ~**${top.estimated_1rm}lb** estimated 1RM (${top.date}).`;
   }
 
-  return `I have your training data but need an Anthropic API key to give a precise answer to: *"${question}"*.\n\nAdd \`ANTHROPIC_API_KEY=sk-ant-...\` to \`.env.local\` and restart.`;
+  return `${AI_NOT_CONFIGURED_MESSAGE}.`;
 }

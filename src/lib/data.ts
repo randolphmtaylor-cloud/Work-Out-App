@@ -198,7 +198,7 @@ export async function getExercises(): Promise<Exercise[]> {
   if (isDemo()) return MOCK_EXERCISES;
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data } = await supabase.from("exercises").select("*");
+  const { data } = await supabase.from("exercise_definitions").select("*");
   return data ?? MOCK_EXERCISES;
 }
 

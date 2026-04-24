@@ -11,14 +11,16 @@ import { useRouter } from "next/navigation";
 interface Props {
   summary: WeeklySummary | null;
   phase: TrainingPhase | null;
+  aiEnabled: boolean;
 }
 
-export function SummaryPanel({ summary: initialSummary, phase }: Props) {
+export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Props) {
   const [summary, setSummary] = useState(initialSummary);
   const [generating, setGenerating] = useState(false);
   const router = useRouter();
 
   const regenerate = async () => {
+    if (!aiEnabled) return;
     setGenerating(true);
     try {
       const res = await fetch("/api/summaries/generate", { method: "POST" });
@@ -49,7 +51,7 @@ export function SummaryPanel({ summary: initialSummary, phase }: Props) {
               variant="ghost"
               size="sm"
               onClick={regenerate}
-              disabled={generating}
+              disabled={generating || !aiEnabled}
               className="gap-1 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
             >
               {generating
@@ -109,7 +111,7 @@ export function SummaryPanel({ summary: initialSummary, phase }: Props) {
               variant="outline"
               size="sm"
               onClick={regenerate}
-              disabled={generating}
+              disabled={generating || !aiEnabled}
               className="gap-1.5"
             >
               {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}

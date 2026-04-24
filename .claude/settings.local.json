@@ -12,7 +12,9 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('exports:', list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:10]\\)\")",
       "Bash(npx tsc *)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(node_modules/.bin/next build *)"
     ]
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { streamCoachAnswer } from "@/lib/ai/client";
+import { AI_NOT_CONFIGURED_MESSAGE, isAIConfigured } from "@/lib/ai/config";
 import { getActivePhase, getAllSets, getSessions } from "@/lib/data";
 
 const DEMO_USER = "demo-user";
@@ -28,13 +29,23 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const [phase, sessions, allSets] = await Promise.all([
-    getActivePhase(DEMO_USER),
-    getSessions(DEMO_USER),
-    getAllSets(DEMO_USER),
-  ]);
+  if (!isAIConfigured()) {
+    return new Response(AI_NOT_CONFIGURED_MESSAGE, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-cache",
+      },
+    });
+  }
 
   try {
+    const [phase, sessions, allSets] = await Promise.all([
+      getActivePhase(DEMO_USER),
+      getSessions(DEMO_USER),
+      getAllSets(DEMO_USER),
+    ]);
     const stream = await streamCoachAnswer(question, sessions, allSets, phase, history);
     return new Response(stream, {
       headers: {
@@ -45,6 +56,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("Coach error:", err);
-    return new Response("Failed to get answer", { status: 500 });
+    return new Response(AI_NOT_CONFIGURED_MESSAGE, {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   }
 }

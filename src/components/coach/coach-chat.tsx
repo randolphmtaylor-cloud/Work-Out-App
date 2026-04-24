@@ -15,14 +15,17 @@ interface Message {
 
 interface Props {
   quickQuestions: string[];
+  aiEnabled: boolean;
 }
 
-export function CoachChat({ quickQuestions }: Props) {
+export function CoachChat({ quickQuestions, aiEnabled }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "assistant",
-      content: "Hi — I'm your AI strength coach. I have your full training history and computed analytics. Ask me anything specific: a lift's trend, your plateaus, what to focus on today.",
+      content: aiEnabled
+        ? "Hi — I'm your AI strength coach. I have your full training history and computed analytics. Ask me anything specific: a lift's trend, your plateaus, what to focus on today."
+        : "AI features are not configured yet",
     },
   ]);
   const [input, setInput] = useState("");
@@ -35,7 +38,7 @@ export function CoachChat({ quickQuestions }: Props) {
   }, [messages]);
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || loading) return;
+    if (!aiEnabled || !text.trim() || loading) return;
 
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
@@ -135,7 +138,7 @@ export function CoachChat({ quickQuestions }: Props) {
             <button
               key={q}
               onClick={() => sendMessage(q)}
-              disabled={loading}
+              disabled={loading || !aiEnabled}
               className="text-xs bg-zinc-50 hover:bg-indigo-50 hover:text-indigo-700 border border-zinc-200 hover:border-indigo-200 text-zinc-600 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
             >
               {q}
@@ -200,12 +203,13 @@ export function CoachChat({ quickQuestions }: Props) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask your coach anything..."
+          disabled={!aiEnabled}
           className="min-h-[40px] max-h-24 resize-none text-sm border-zinc-200 flex-1"
           rows={1}
         />
         <Button
           onClick={() => sendMessage(input)}
-          disabled={!input.trim() || loading}
+          disabled={!aiEnabled || !input.trim() || loading}
           variant="accent"
           size="icon"
           className="shrink-0"
