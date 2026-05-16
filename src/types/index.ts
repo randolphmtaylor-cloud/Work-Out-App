@@ -39,6 +39,7 @@ export type PhaseType = "accumulation" | "intensification" | "density";
 
 export type WorkoutSource = "import_text" | "import_docx" | "import_xlsx" | "manual" | "generated";
 export type ExerciseStatus = "active" | "unreviewed";
+export type ExerciseCategory = "push" | "pull" | "legs" | "upper" | "lower" | "core" | "other";
 
 // ---------------------------------------------------------------
 // Equipment
@@ -67,6 +68,20 @@ export interface Exercise {
   muscle_groups: MuscleGroup[];
   tags: WorkoutTag[];
   notes?: string;
+  created_at: string;
+}
+
+export interface CanonicalExercise {
+  id: string;
+  name: string;
+  category: ExerciseCategory;
+  created_at: string;
+}
+
+export interface ExerciseCanonicalMapping {
+  id: string;
+  exercise_id: string;
+  canonical_exercise_id: string;
   created_at: string;
 }
 
@@ -135,7 +150,14 @@ export interface ExercisePrescription {
   reps_high: number;
   rest_seconds: number;
   notes?: string;
-  substitutions?: string[]; // exercise names if equipment unavailable
+  substitutions?: ExerciseSubstitution[]; // similar options if equipment is unavailable
+}
+
+export interface ExerciseSubstitution {
+  exercise_id: string;
+  exercise_name: string;
+  equipment_name?: string;
+  reason: string;
 }
 
 export interface GeneratedRoutine {

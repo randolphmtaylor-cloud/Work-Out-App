@@ -53,8 +53,8 @@ export default async function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Dashboard</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">{formatDisplay(today)}</p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Dashboard</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{formatDisplay(today)}</p>
         </div>
         <Link href="/today">
           <Button variant="accent" size="sm" className="gap-1.5">
@@ -147,16 +147,16 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Overall</span>
-              <span className="font-semibold text-zinc-900">{analytics.consistency.overall_pct}%</span>
+              <span className="text-zinc-500 dark:text-zinc-400">Overall</span>
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">{analytics.consistency.overall_pct}%</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Current streak</span>
-              <span className="font-semibold text-zinc-900">{analytics.consistency.current_streak} weeks</span>
+              <span className="text-zinc-500 dark:text-zinc-400">Current streak</span>
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">{analytics.consistency.current_streak} weeks</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Longest streak</span>
-              <span className="font-semibold text-zinc-900">{analytics.consistency.longest_streak} weeks</span>
+              <span className="text-zinc-500 dark:text-zinc-400">Longest streak</span>
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">{analytics.consistency.longest_streak} weeks</span>
             </div>
             <Link href="/progress" className="block pt-1">
               <span className="text-xs text-indigo-600 hover:underline">View full analytics →</span>
@@ -171,8 +171,8 @@ export default async function DashboardPage() {
           <CardContent className="space-y-1.5">
             {analytics.topSets.slice(0, 3).map((ts) => (
               <div key={ts.exercise_id} className="flex justify-between text-sm">
-                <span className="text-zinc-600 truncate mr-2">{ts.exercise_name}</span>
-                <span className="font-medium text-zinc-900 shrink-0">~{ts.estimated_1rm} lbs</span>
+                <span className="text-zinc-600 dark:text-zinc-400 truncate mr-2">{ts.exercise_name}</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100 shrink-0">~{ts.estimated_1rm} lbs</span>
               </div>
             ))}
             {analytics.topSets.length === 0 && (
@@ -188,11 +188,11 @@ export default async function DashboardPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Weekly Summary</CardTitle>
-              <span className="text-xs text-zinc-400">{formatShort(summary.week_start)} – {formatShort(summary.week_end)}</span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">{formatShort(summary.week_start)} – {formatShort(summary.week_end)}</span>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-sm text-zinc-700 space-y-1.5">
+            <div className="text-sm text-zinc-700 dark:text-zinc-300 space-y-1.5">
               {summary.summary_text.split("\n\n").slice(0, 2).map((p, i) => (
                 <p key={i} dangerouslySetInnerHTML={{ __html: p.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />
               ))}
@@ -217,15 +217,15 @@ export default async function DashboardPage() {
         <CardContent>
           <div className="space-y-2">
             {sessions.slice(0, 5).map((s) => (
-              <div key={s.id} className="flex items-center justify-between py-1.5 border-b border-zinc-50 last:border-0">
+              <div key={s.id} className="flex items-center justify-between py-1.5 border-b border-zinc-50 dark:border-zinc-800 last:border-0">
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
-                  <span className="text-sm text-zinc-900 font-medium">{formatShort(s.date)}</span>
+                  <span className="text-sm text-zinc-900 dark:text-zinc-100 font-medium">{formatShort(s.date)}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-400 capitalize">{s.source.replace("_", " ")}</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500 capitalize">{s.source.replace("_", " ")}</span>
                   {s.duration_minutes && (
-                    <span className="text-xs text-zinc-500">{s.duration_minutes}m</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">{s.duration_minutes}m</span>
                   )}
                 </div>
               </div>
@@ -244,13 +244,13 @@ export default async function DashboardPage() {
 
 function StatCard({ label, value, icon, sub }: { label: string; value: string; icon: React.ReactNode; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-zinc-500 leading-tight">{label}</span>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400 leading-tight">{label}</span>
         {icon}
       </div>
-      <p className="text-2xl font-bold text-zinc-900">{value}</p>
-      {sub && <p className="text-xs text-zinc-400 mt-0.5">{sub}</p>}
+      <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{value}</p>
+      {sub && <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{sub}</p>}
     </div>
   );
 }

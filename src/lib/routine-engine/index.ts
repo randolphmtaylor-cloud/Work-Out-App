@@ -19,6 +19,7 @@ import {
   Exercise,
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
+import { getSimilarWorkouts } from "@/lib/workout-repository";
 
 // ---- Timing constants ----
 const WARMUP_MINUTES = 3;
@@ -291,6 +292,7 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
       reps_low: 8,
       reps_high: 12,
       rest_seconds: 45,
+      substitutions: getSimilarWorkouts(coreChoice, 2),
     });
     minutesUsed += exerciseMinutes(coreChoice, 3);
   }
@@ -315,16 +317,8 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   };
 }
 
-function getSubstitutions(ex: Exercise): string[] {
-  const subs: Record<string, string[]> = {
-    "pull-up":              ["Lat Pulldown"],
-    "dip":                  ["Tricep Pushdown", "Cable Overhead Extension"],
-    "cybex-incline-press":  ["Dumbbell Incline Press", "Hammer Strength Incline"],
-    "hammer-strength-row":  ["Seated Cable Row", "Dumbbell Row"],
-    "trap-bar-deadlift":    ["Leg Press", "Romanian Deadlift"],
-    "icarian-leg-press":    ["Trap Bar Deadlift", "Goblet Squat"],
-  };
-  return subs[ex.canonical_name] ?? [];
+function getSubstitutions(ex: Exercise) {
+  return getSimilarWorkouts(ex);
 }
 
 // ---------------------------------------------------------------

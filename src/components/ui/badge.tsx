@@ -7,17 +7,28 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-zinc-900 text-white",
-        secondary: "border-transparent bg-zinc-100 text-zinc-700",
-        outline: "border-zinc-200 text-zinc-700",
-        accent: "border-transparent bg-indigo-100 text-indigo-700",
-        success: "border-transparent bg-green-100 text-green-700",
-        warning: "border-transparent bg-amber-100 text-amber-700",
-        destructive: "border-transparent bg-red-100 text-red-700",
-        push: "border-transparent bg-orange-100 text-orange-700",
-        pull: "border-transparent bg-blue-100 text-blue-700",
-        legs: "border-transparent bg-purple-100 text-purple-700",
-        core: "border-transparent bg-teal-100 text-teal-700",
+        default:
+          "border-transparent bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900",
+        secondary:
+          "border-transparent bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300",
+        outline:
+          "border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300",
+        accent:
+          "border-transparent bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300",
+        success:
+          "border-transparent bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
+        warning:
+          "border-transparent bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+        destructive:
+          "border-transparent bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
+        push:
+          "border-transparent bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300",
+        pull:
+          "border-transparent bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+        legs:
+          "border-transparent bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
+        core:
+          "border-transparent bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300",
       },
     },
     defaultVariants: { variant: "default" },

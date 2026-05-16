@@ -86,6 +86,22 @@ CREATE TABLE IF NOT EXISTS exercise_definitions (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Canonical normalization catalog
+CREATE TABLE IF NOT EXISTS canonical_exercises (
+  id               TEXT PRIMARY KEY,
+  name             TEXT NOT NULL UNIQUE,
+  category         workout_tag NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Links source exercise definitions to canonical exercises
+CREATE TABLE IF NOT EXISTS exercise_canonical_mappings (
+  id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  exercise_id          TEXT NOT NULL REFERENCES exercise_definitions(id) ON DELETE CASCADE UNIQUE,
+  canonical_exercise_id TEXT NOT NULL REFERENCES canonical_exercises(id) ON DELETE CASCADE,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Trigram index for fuzzy name search
 CREATE INDEX IF NOT EXISTS idx_exercise_definitions_name_trgm
   ON exercise_definitions USING gin (name gin_trgm_ops);
@@ -295,12 +311,20 @@ CREATE TRIGGER trg_user_preferences_updated_at
 -- Reference tables: authenticated users can read; only service role writes
 ALTER TABLE equipment           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exercise_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE canonical_exercises ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercise_canonical_mappings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Public read equipment"
   ON equipment FOR SELECT TO authenticated USING (TRUE);
 
 CREATE POLICY "Public read exercise_definitions"
   ON exercise_definitions FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY "Public read canonical_exercises"
+  ON canonical_exercises FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY "Public read exercise_canonical_mappings"
+  ON exercise_canonical_mappings FOR SELECT TO authenticated USING (TRUE);
 
 -- User-scoped tables: each user sees/touches only their own rows
 ALTER TABLE training_phases     ENABLE ROW LEVEL SECURITY;
@@ -515,6 +539,15 @@ VALUES
    ARRAY['shoulders','triceps']::muscle_group[],
    ARRAY['push','upper','compound']::workout_tag[],
    '2024-01-01T00:00:00Z')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO canonical_exercises (id, name, category, created_at) VALUES
+  ('can-1', 'Lat Pulldown', 'pull', '2024-01-01T00:00:00Z'),
+  ('can-2', 'Seated Cable Row', 'pull', '2024-01-01T00:00:00Z'),
+  ('can-3', 'Machine Chest Press', 'push', '2024-01-01T00:00:00Z'),
+  ('can-4', 'Squat', 'legs', '2024-01-01T00:00:00Z'),
+  ('can-5', 'Back Extension', 'lower', '2024-01-01T00:00:00Z'),
+  ('can-6', 'Triceps Machine', 'push', '2024-01-01T00:00:00Z')
 ON CONFLICT (id) DO NOTHING;
 
 

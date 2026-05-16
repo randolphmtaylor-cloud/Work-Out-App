@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
+/* Class-based dark mode — next-themes adds .dark to <html> */
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --color-background: #fafafa;
-  --color-foreground: #09090b;
   --color-ring: #6366f1;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -18,9 +19,25 @@ body {
   color: #09090b;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dark body {
+  background-color: #09090b;
+  color: #fafafa;
 }
 
 /* Prose for AI summary markdown */
 .prose strong { font-weight: 600; }
 .prose p { margin-bottom: 0.75rem; line-height: 1.625; }
 .prose p:last-child { margin-bottom: 0; }
+
+/* Recharts tooltip dark mode */
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #18181b !important;
+  border-color: #27272a !important;
+  color: #fafafa !important;
+}
+.dark .recharts-cartesian-axis-tick-value {
+  fill: #71717a;
+}

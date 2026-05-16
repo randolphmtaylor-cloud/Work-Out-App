@@ -9,8 +9,10 @@ import {
   WeeklySummary,
   Equipment,
   Exercise,
+  CanonicalExercise,
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
+import { DEFAULT_CANONICAL_EXERCISES } from "@/lib/canonical-exercises";
 
 export const isDemo = () =>
   !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -34,6 +36,13 @@ function toCanonicalName(name: string) {
 
 function mapExerciseStatus(notes?: string): Exercise["status"] {
   return notes?.includes("status:unreviewed") ? "unreviewed" : "active";
+}
+
+function toCanonicalSlug(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
 // ---------------------------------------------------------------
@@ -335,6 +344,27 @@ export async function getExercises(): Promise<Exercise[]> {
   }));
 }
 
+export async function getCanonicalExercises(): Promise<CanonicalExercise[]> {
+  if (isDemo()) {
+    const { storeCanonicalExercises } = await import("@/lib/store");
+    return storeCanonicalExercises();
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("canonical_exercises").select("*").order("name");
+  if (error) {
+    logSupabaseError("getCanonicalExercises failed", error);
+    return DEFAULT_CANONICAL_EXERCISES;
+  }
+  return data ?? DEFAULT_CANONICAL_EXERCISES;
+}
+
+export async function getUnreviewedExercises(): Promise<Exercise[]> {
+  const exercises = await getExercises();
+  return exercises.filter((exercise) => exercise.status === "unreviewed");
+}
+
 export async function getEquipment(): Promise<Equipment[]> {
   if (isDemo()) return MOCK_EQUIPMENT;
   const { createClient } = await import("@/lib/supabase/server");
@@ -347,13 +377,33 @@ export async function createUnreviewedExercise(
   name: string,
   aliases: string[] = []
 ): Promise<{ exercise: Exercise; created: boolean }> {
+  const existingExercises = await getExercises();
+  const lower = name.trim().toLowerCase();
+  const matched = existingExercises.find(
+    (exercise) =>
+      exercise.name.toLowerCase() === lower ||
+      exercise.canonical_name.toLowerCase() === lower ||
+      exercise.aliases.some((alias) => alias.toLowerCase() === lower)
+  );
+  if (matched) {
+    return { exercise: matched, created: false };
+  }
+
   const canonicalName = toCanonicalName(name);
   if (!canonicalName) {
     throw new Error("Invalid exercise name");
   }
 
   if (isDemo()) {
-    const { storeFindExerciseByCanonical, storeCreateUnreviewedExercise } = await import("@/lib/store");
+    const {
+      storeFindExerciseByCanonical,
+      storeFindExerciseByNameOrAlias,
+      storeCreateUnreviewedExercise,
+    } = await import("@/lib/store");
+    const existingByName = storeFindExerciseByNameOrAlias(name);
+    if (existingByName) {
+      return { exercise: existingByName, created: false };
+    }
     const existing = storeFindExerciseByCanonical(canonicalName);
     if (existing) {
       return { exercise: existing, created: false };
@@ -455,4 +505,104 @@ export async function insertSessionWithSets(
     const { error: setsError } = await supabase.from("workout_sets").insert(sets);
     if (setsError) logSupabaseError("insertSessionWithSets sets insert failed", setsError);
   }
+}
+
+export async function mapUnreviewedExerciseToCanonical(
+  exerciseId: string,
+  canonicalExerciseId: string
+): Promise<{ remappedSets: number }> {
+  if (isDemo()) {
+    const { storeMapExerciseToCanonical } = await import("@/lib/store");
+    return storeMapExerciseToCanonical(exerciseId, canonicalExerciseId);
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+
+  const { data: canonical, error: canonicalError } = await supabase
+    .from("canonical_exercises")
+    .select("*")
+    .eq("id", canonicalExerciseId)
+    .maybeSingle();
+  if (canonicalError || !canonical) {
+    logSupabaseError("mapUnreviewedExerciseToCanonical canonical lookup failed", canonicalError);
+    return { remappedSets: 0 };
+  }
+
+  const targetSlug = toCanonicalSlug(canonical.name);
+  let targetExerciseId = "";
+  const { data: existingTarget, error: targetError } = await supabase
+    .from("exercise_definitions")
+    .select("*")
+    .eq("canonical_name", targetSlug)
+    .maybeSingle();
+  if (targetError) {
+    logSupabaseError("mapUnreviewedExerciseToCanonical target lookup failed", targetError);
+  }
+
+  if (existingTarget) {
+    targetExerciseId = existingTarget.id;
+  } else {
+    const payload = {
+      id: crypto.randomUUID(),
+      name: canonical.name,
+      canonical_name: targetSlug,
+      aliases: [canonical.name],
+      muscle_groups: [],
+      tags: [],
+      notes: "status:active",
+      created_at: new Date().toISOString(),
+    };
+    const { data: created, error: createError } = await supabase
+      .from("exercise_definitions")
+      .insert(payload)
+      .select("*")
+      .single();
+    if (createError || !created) {
+      logSupabaseError("mapUnreviewedExerciseToCanonical target create failed", createError);
+      return { remappedSets: 0 };
+    }
+    targetExerciseId = created.id;
+  }
+
+  const { data: setsToRemap, error: setsLookupError } = await supabase
+    .from("workout_sets")
+    .select("id")
+    .eq("exercise_id", exerciseId);
+  if (setsLookupError) {
+    logSupabaseError("mapUnreviewedExerciseToCanonical set lookup failed", setsLookupError);
+    return { remappedSets: 0 };
+  }
+
+  const { error: remapError } = await supabase
+    .from("workout_sets")
+    .update({ exercise_id: targetExerciseId })
+    .eq("exercise_id", exerciseId);
+  if (remapError) {
+    logSupabaseError("mapUnreviewedExerciseToCanonical remap failed", remapError);
+    return { remappedSets: 0 };
+  }
+
+  const mappingPayload = {
+    id: crypto.randomUUID(),
+    exercise_id: exerciseId,
+    canonical_exercise_id: canonicalExerciseId,
+    created_at: new Date().toISOString(),
+  };
+  const { error: mappingError } = await supabase
+    .from("exercise_canonical_mappings")
+    .upsert(mappingPayload, { onConflict: "exercise_id" });
+  if (mappingError) {
+    logSupabaseError("mapUnreviewedExerciseToCanonical mapping upsert failed", mappingError);
+  }
+
+  const { error: markError } = await supabase
+    .from("exercise_definitions")
+    .update({ notes: `status:mapped;canonical:${canonical.name}` })
+    .eq("id", exerciseId);
+  if (markError) {
+    logSupabaseError("mapUnreviewedExerciseToCanonical source status update failed", markError);
+  }
+
+  return { remappedSets: (setsToRemap ?? []).length };
 }

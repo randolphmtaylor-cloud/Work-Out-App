@@ -34,7 +34,7 @@ export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Prop
   };
 
   return (
-    <Card className="border-indigo-100">
+    <Card className="border-indigo-100 dark:border-indigo-900/50">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -43,7 +43,7 @@ export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Prop
           </div>
           <div className="flex items-center gap-2">
             {summary && (
-              <span className="text-xs text-zinc-400">
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">
                 {formatShort(summary.week_start)} – {formatShort(summary.week_end)}
               </span>
             )}
@@ -52,7 +52,7 @@ export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Prop
               size="sm"
               onClick={regenerate}
               disabled={generating || !aiEnabled}
-              className="gap-1 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+              className="gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
             >
               {generating
                 ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -65,7 +65,7 @@ export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Prop
       <CardContent className="space-y-4">
         {summary ? (
           <>
-            <div className="text-sm text-zinc-700 space-y-2 leading-relaxed">
+            <div className="text-sm text-zinc-700 dark:text-zinc-300 space-y-2 leading-relaxed">
               {summary.summary_text.split("\n\n").map((para, i) => (
                 <p
                   key={i}
@@ -89,15 +89,15 @@ export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Prop
 
             {summary.stats.top_lifts.length > 0 && (
               <div>
-                <p className="text-xs text-zinc-400 mb-2">Top lifts this week</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">Top lifts this week</p>
                 <div className="flex flex-wrap gap-1.5">
                   {summary.stats.top_lifts.map((lift, i) => (
                     <div
                       key={i}
-                      className="text-xs bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5"
+                      className="text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5"
                     >
-                      <span className="font-medium text-zinc-700">{lift.exercise}</span>
-                      <span className="text-zinc-400 ml-1.5">{lift.best_set}</span>
+                      <span className="font-medium text-zinc-700 dark:text-zinc-300">{lift.exercise}</span>
+                      <span className="text-zinc-400 dark:text-zinc-500 ml-1.5">{lift.best_set}</span>
                     </div>
                   ))}
                 </div>
@@ -106,7 +106,7 @@ export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Prop
           </>
         ) : (
           <div className="text-center py-6">
-            <p className="text-sm text-zinc-500 mb-3">No summary yet for this week.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">No summary yet for this week.</p>
             <Button
               variant="outline"
               size="sm"
@@ -127,8 +127,8 @@ export function SummaryPanel({ summary: initialSummary, phase, aiEnabled }: Prop
 function Stat({ value, label }: { value: string | number; label: string }) {
   return (
     <div className="text-center">
-      <p className="text-xl font-bold text-zinc-900">{value}</p>
-      <p className="text-xs text-zinc-400 mt-0.5">{label}</p>
+      <p className="text-xl font-bold text-zinc-900 dark:text-zinc-50">{value}</p>
+      <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{label}</p>
     </div>
   );
 }

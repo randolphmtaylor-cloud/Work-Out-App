@@ -8,13 +8,20 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-zinc-900 text-white hover:bg-zinc-800",
-        destructive: "bg-red-600 text-white hover:bg-red-700",
-        outline: "border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-900",
-        secondary: "bg-zinc-100 text-zinc-900 hover:bg-zinc-200",
-        ghost: "hover:bg-zinc-100 text-zinc-900",
-        link: "text-zinc-900 underline-offset-4 hover:underline",
-        accent: "bg-indigo-600 text-white hover:bg-indigo-700",
+        default:
+          "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200",
+        destructive:
+          "bg-red-600 text-white hover:bg-red-700",
+        outline:
+          "border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100",
+        secondary:
+          "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700",
+        ghost:
+          "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100",
+        link:
+          "text-zinc-900 dark:text-zinc-100 underline-offset-4 hover:underline",
+        accent:
+          "bg-indigo-600 text-white hover:bg-indigo-700",
       },
       size: {
         default: "h-10 px-4 py-2",

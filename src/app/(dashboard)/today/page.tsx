@@ -33,7 +33,7 @@ export default async function TodayPage() {
   if (!routine) {
     return (
       <div className="p-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-4">Today&apos;s Workout</h1>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">Today&apos;s Workout</h1>
         <Card>
           <CardContent className="p-8 text-center text-zinc-500">
             No active training phase. Set up a phase to get daily routines.
@@ -49,25 +49,25 @@ export default async function TodayPage() {
     <div className="p-6 max-w-2xl mx-auto space-y-5">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Today&apos;s Workout</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">{formatDisplay(today)}</p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Today&apos;s Workout</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{formatDisplay(today)}</p>
         </div>
         <GenerateRoutineButton />
       </div>
 
       {/* Summary card */}
-      <Card className="border-indigo-100 bg-indigo-50/30">
+      <Card className="border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/30 dark:bg-indigo-950/30">
         <CardContent className="pt-4 pb-4">
           <div className="flex flex-wrap items-center gap-3 mb-2">
             <Badge variant={badgeVariant} className="capitalize text-sm px-3 py-1">
               {routine.workout_type.replace("_", " ")} Day
             </Badge>
-            <div className="flex items-center gap-1 text-sm text-zinc-500">
+            <div className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
               <Clock className="w-3.5 h-3.5" />
               ~{routine.estimated_duration_minutes} min
             </div>
           </div>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
             {routine.exercises.length} exercises ·{" "}
             {routine.exercises.reduce((s, e) => s + e.sets, 0)} working sets
           </p>
@@ -79,13 +79,13 @@ export default async function TodayPage() {
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
             <Thermometer className="w-4 h-4 text-amber-500" />
-            <CardTitle className="text-sm font-semibold text-zinc-600">
+            <CardTitle className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
               Warmup · {routine.warmup.duration_minutes} min
             </CardTitle>
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-zinc-600">{routine.warmup.description}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{routine.warmup.description}</p>
         </CardContent>
       </Card>
 

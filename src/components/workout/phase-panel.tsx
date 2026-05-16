@@ -40,7 +40,7 @@ export function PhasePanel({ phase }: Props) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Badge variant="accent">{phase.name}</Badge>
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
             {phase.rep_range_low}–{phase.rep_range_high} reps
           </span>
         </div>
@@ -58,9 +58,9 @@ export function PhasePanel({ phase }: Props) {
         )}
       </div>
 
-      <p className="text-sm text-zinc-600 mb-3">{phase.description}</p>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">{phase.description}</p>
 
-      <div className="flex justify-between text-xs text-zinc-400 mb-1.5">
+      <div className="flex justify-between text-xs text-zinc-400 dark:text-zinc-500 mb-1.5">
         <span>{formatShort(phase.start_date)}</span>
         <span>
           Week {weekNum} of 3 · {daysLeft > 0 ? `${daysLeft}d left` : "complete"}
@@ -70,7 +70,7 @@ export function PhasePanel({ phase }: Props) {
       <Progress value={pct} />
 
       {daysLeft === 0 && (
-        <p className="text-xs text-amber-600 mt-2">
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
           Phase complete — advance to the next phase when ready.
         </p>
       )}

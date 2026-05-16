@@ -121,14 +121,14 @@ export function CoachChat({ quickQuestions, aiEnabled }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
       {/* Quick questions */}
-      <div className="px-4 pt-4 pb-3 border-b border-zinc-100">
+      <div className="px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-zinc-400 font-medium">Quick questions</p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 font-medium">Quick questions</p>
           <button
             onClick={clearChat}
-            className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1"
+            className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-1"
           >
             <RefreshCw className="w-3 h-3" /> Clear
           </button>
@@ -139,7 +139,7 @@ export function CoachChat({ quickQuestions, aiEnabled }: Props) {
               key={q}
               onClick={() => sendMessage(q)}
               disabled={loading || !aiEnabled}
-              className="text-xs bg-zinc-50 hover:bg-indigo-50 hover:text-indigo-700 border border-zinc-200 hover:border-indigo-200 text-zinc-600 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
+              className="text-xs bg-zinc-50 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-700 dark:hover:text-indigo-400 border border-zinc-200 dark:border-zinc-700 hover:border-indigo-200 dark:hover:border-indigo-700 text-zinc-600 dark:text-zinc-400 px-2.5 py-1 rounded-full transition-colors disabled:opacity-40"
             >
               {q}
             </button>
@@ -157,18 +157,18 @@ export function CoachChat({ quickQuestions, aiEnabled }: Props) {
             >
               <div className={cn(
                 "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5",
-                msg.role === "user" ? "bg-indigo-600" : "bg-zinc-100"
+                msg.role === "user" ? "bg-indigo-600" : "bg-zinc-100 dark:bg-zinc-800"
               )}>
                 {msg.role === "user"
                   ? <User className="w-3.5 h-3.5 text-white" />
-                  : <Bot className="w-3.5 h-3.5 text-zinc-600" />}
+                  : <Bot className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />}
               </div>
 
               <div className={cn(
                 "max-w-[82%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
                 msg.role === "user"
                   ? "bg-indigo-600 text-white"
-                  : "bg-zinc-50 text-zinc-800 border border-zinc-100"
+                  : "bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-100 dark:border-zinc-700"
               )}>
                 {msg.content ? (
                   <span
@@ -179,14 +179,14 @@ export function CoachChat({ quickQuestions, aiEnabled }: Props) {
                     }}
                   />
                 ) : (
-                  <span className="flex gap-1 items-center text-zinc-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span className="flex gap-1 items-center text-zinc-400 dark:text-zinc-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-bounce" style={{ animationDelay: "300ms" }} />
                   </span>
                 )}
                 {msg.streaming && msg.content && (
-                  <span className="inline-block w-0.5 h-3.5 bg-zinc-400 ml-0.5 animate-pulse align-middle" />
+                  <span className="inline-block w-0.5 h-3.5 bg-zinc-400 dark:bg-zinc-500 ml-0.5 animate-pulse align-middle" />
                 )}
               </div>
             </div>
@@ -196,7 +196,7 @@ export function CoachChat({ quickQuestions, aiEnabled }: Props) {
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-3 border-t border-zinc-100 flex gap-2">
+      <div className="p-3 border-t border-zinc-100 dark:border-zinc-800 flex gap-2">
         <Textarea
           ref={textareaRef}
           value={input}

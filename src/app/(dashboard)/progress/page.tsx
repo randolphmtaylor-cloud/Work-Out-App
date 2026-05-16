@@ -24,8 +24,8 @@ export default async function ProgressPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Progress</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Progress</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
           {analytics.totalSessions} sessions · {analytics.totalSets} sets · {Math.round(analytics.totalVolumeLbs / 1000)}k lbs total volume
         </p>
       </div>
@@ -44,7 +44,7 @@ export default async function ProgressPage() {
           <div className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-indigo-600" />
             <CardTitle className="text-base">Weekly Consistency</CardTitle>
-            <span className="ml-auto text-xs text-zinc-400">
+            <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500">
               {analytics.consistency.longest_streak}w longest streak
             </span>
           </div>
@@ -76,7 +76,7 @@ export default async function ProgressPage() {
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-amber-500" />
               <CardTitle className="text-base">All-Time Top Sets</CardTitle>
-              <span className="ml-auto text-xs text-zinc-400">by est. 1RM</span>
+              <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500">by est. 1RM</span>
             </div>
           </CardHeader>
           <CardContent>
@@ -88,7 +88,7 @@ export default async function ProgressPage() {
       {/* Lift progression charts */}
       {analytics.trends.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-zinc-700 mb-3 flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-green-600" />
             Lift Progression
           </h2>
@@ -128,7 +128,7 @@ export default async function ProgressPage() {
 
       {/* Plateau alerts */}
       {analytics.plateaus.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/30">
+        <Card className="border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-950/30">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -141,12 +141,12 @@ export default async function ProgressPage() {
                 {i > 0 && <Separator className="mb-3" />}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
-                    <p className="font-medium text-sm text-zinc-900">{p.exercise_name}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
+                    <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100">{p.exercise_name}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                       Last PR: {p.last_pr_date}
                       {p.last_pr_weight ? ` · ${p.last_pr_weight}lbs × ${p.last_pr_reps}` : ` · ${p.last_pr_reps}r BW`}
                     </p>
-                    <p className="text-xs text-amber-800 bg-amber-100 rounded px-2 py-1 mt-1.5 inline-block">
+                    <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 rounded px-2 py-1 mt-1.5 inline-block">
                       {p.recommendation}
                     </p>
                   </div>
@@ -183,14 +183,14 @@ export default async function ProgressPage() {
             <div className="space-y-2">
               {analytics.mostFrequentExercises.map((ex) => (
                 <div key={ex.name} className="flex items-center gap-3">
-                  <span className="text-sm text-zinc-700 w-48 truncate shrink-0">{ex.name}</span>
-                  <div className="flex-1 bg-zinc-100 rounded-full h-2">
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300 w-48 truncate shrink-0">{ex.name}</span>
+                  <div className="flex-1 bg-zinc-100 dark:bg-zinc-800 rounded-full h-2">
                     <div
                       className="bg-indigo-400 h-2 rounded-full"
                       style={{ width: `${Math.min((ex.sessions / analytics.totalSessions) * 100, 100)}%` }}
                     />
                   </div>
-                  <span className="text-xs text-zinc-400 w-12 text-right shrink-0">{ex.sessions}× ({Math.round((ex.sessions / analytics.totalSessions) * 100)}%)</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500 w-12 text-right shrink-0">{ex.sessions}× ({Math.round((ex.sessions / analytics.totalSessions) * 100)}%)</span>
                 </div>
               ))}
             </div>
@@ -203,10 +203,10 @@ export default async function ProgressPage() {
 
 function StatBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="text-2xl font-bold text-zinc-900 mt-1">{value}</p>
-      {sub && <p className="text-xs text-zinc-400 mt-0.5">{sub}</p>}
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 mt-1">{value}</p>
+      {sub && <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{sub}</p>}
     </div>
   );
 }

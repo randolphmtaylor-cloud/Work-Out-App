@@ -5,6 +5,12 @@
 import { MOCK_EXERCISES } from "@/lib/mock-data";
 import { Exercise } from "@/types";
 
+const HARD_MAPPINGS: Record<string, string> = {
+  "lat pulldown": "lat-pulldown",
+  "seated row": "seated-cable-row",
+  "hammer strength bench": "machine-chest-press",
+};
+
 // Build a map from all aliases + canonical names → canonical_name
 const buildAliasMap = (exercises: Exercise[]): Map<string, string> => {
   const map = new Map<string, string>();
@@ -38,6 +44,15 @@ export function normalizeExerciseName(
 } {
   const lower = raw.toLowerCase().trim();
   const aliasMap = buildAliasMap(exercises);
+
+  const hardMapped = HARD_MAPPINGS[lower];
+  if (hardMapped) {
+    return {
+      canonical_name: hardMapped,
+      confidence: "exact",
+      matched_name: lower,
+    };
+  }
 
   // Exact map lookup
   if (aliasMap.has(lower)) {

@@ -14,7 +14,8 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(npm run *)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(node_modules/.bin/next build *)"
+      "Bash(node_modules/.bin/next build *)",
+      "Bash(node -e \"require\\('next-themes'\\); console.log\\('next-themes ok'\\)\")"
     ]
   }
 }

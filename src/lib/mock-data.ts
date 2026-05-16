@@ -39,7 +39,7 @@ export const MOCK_EQUIPMENT: Equipment[] = [
 // ---------------------------------------------------------------
 export const MOCK_EXERCISES: Exercise[] = [
   { id: "ex-1",  name: "Cybex Incline Press",          canonical_name: "cybex-incline-press",          aliases: ["cybex incline"],          equipment_id: "eq-1",  muscle_groups: ["chest","shoulders","triceps"], tags: ["push","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
-  { id: "ex-2",  name: "Hammer Strength Bench",         canonical_name: "hammer-strength-bench",         aliases: ["hammer bench"],           equipment_id: "eq-3",  muscle_groups: ["chest","triceps","shoulders"],tags: ["push","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "ex-2",  name: "Machine Chest Press",           canonical_name: "machine-chest-press",           aliases: ["hammer strength bench","hammer bench"], equipment_id: "eq-3",  muscle_groups: ["chest","triceps","shoulders"],tags: ["push","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-3",  name: "Pull-Up",                       canonical_name: "pull-up",                       aliases: ["pullup","chin-up"],        equipment_id: "eq-4",  muscle_groups: ["back","biceps"],              tags: ["pull","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-4",  name: "Dip",                           canonical_name: "dip",                           aliases: ["dips","parallel dip"],     equipment_id: "eq-5",  muscle_groups: ["triceps","chest","shoulders"],tags: ["push","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-5",  name: "Icarian Leg Press",             canonical_name: "icarian-leg-press",             aliases: ["leg press"],               equipment_id: "eq-2",  muscle_groups: ["quads","glutes","hamstrings"],tags: ["legs","lower","compound"], created_at: "2024-01-01T00:00:00Z" },
@@ -55,7 +55,7 @@ export const MOCK_EXERCISES: Exercise[] = [
   { id: "ex-15", name: "Dumbbell Shoulder Press",       canonical_name: "dumbbell-shoulder-press",       aliases: ["db ohp","db shoulder"],    equipment_id: "eq-7",  muscle_groups: ["shoulders","triceps"],        tags: ["push","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-16", name: "Lat Pulldown",                  canonical_name: "lat-pulldown",                  aliases: ["pull downs","pulldowns","pull down","lat pulldown","wide grip pulldown"], equipment_id: "eq-6", muscle_groups: ["back","biceps"], tags: ["pull","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-17", name: "Squat",                         canonical_name: "squat",                         aliases: ["squats","bw squats","ssb squat","hatfield squat"], equipment_id: "eq-8", muscle_groups: ["quads","glutes","hamstrings","core"], tags: ["legs","lower","compound"], created_at: "2024-01-01T00:00:00Z" },
-  { id: "ex-18", name: "Seated Row",                    canonical_name: "seated-row",                    aliases: ["seated rows","seated cable row","seated row - mag"], equipment_id: "eq-6", muscle_groups: ["back","biceps"], tags: ["pull","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "ex-18", name: "Seated Cable Row",              canonical_name: "seated-cable-row",              aliases: ["seated row","seated rows","seated cable row","seated row - mag"], equipment_id: "eq-6", muscle_groups: ["back","biceps"], tags: ["pull","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-19", name: "Back Extension",                canonical_name: "back-extension",                aliases: ["back extensions","45 degree back extension"], muscle_groups: ["back","glutes","hamstrings"], tags: ["lower","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-20", name: "Triceps Machine",               canonical_name: "triceps-machine",               aliases: ["icarian triceps","icarian tricepts","triceps machine"], equipment_id: "eq-2", muscle_groups: ["triceps"], tags: ["push","upper","isolation"], created_at: "2024-01-01T00:00:00Z" },
 ];
@@ -197,7 +197,14 @@ export const MOCK_TODAY_ROUTINE: GeneratedRoutine = {
       reps_high: 8,
       rest_seconds: 90,
       notes: "Aim for 3 working sets after a warm-up set. Full ROM.",
-      substitutions: ["Lat Pulldown"],
+      substitutions: [
+        {
+          exercise_id: "ex-16",
+          exercise_name: "Lat Pulldown",
+          equipment_name: "Cable Machine",
+          reason: "compound pattern; targets back, biceps",
+        },
+      ],
     },
     {
       exercise_id: "ex-7",

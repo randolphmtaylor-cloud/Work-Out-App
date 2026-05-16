@@ -13,6 +13,8 @@ import {
   GeneratedRoutine,
   WeeklySummary,
   Exercise,
+  CanonicalExercise,
+  ExerciseCanonicalMapping,
 } from "@/types";
 import {
   MOCK_SESSIONS,
@@ -22,6 +24,7 @@ import {
   MOCK_LATEST_SUMMARY,
   MOCK_EXERCISES,
 } from "@/lib/mock-data";
+import { DEFAULT_CANONICAL_EXERCISES } from "@/lib/canonical-exercises";
 
 // ---- Mutable store (module-level, server-side only) ----
 const store = {
@@ -31,6 +34,8 @@ const store = {
   routines: []                 as GeneratedRoutine[],
   summaries: [MOCK_LATEST_SUMMARY] as WeeklySummary[],
   exercises: [...MOCK_EXERCISES] as Exercise[],
+  canonicalExercises: [...DEFAULT_CANONICAL_EXERCISES] as CanonicalExercise[],
+  canonicalMappings: [] as ExerciseCanonicalMapping[],
 };
 
 // ---- Sessions ----
@@ -132,6 +137,18 @@ export function storeFindExerciseByCanonical(canonicalName: string): Exercise | 
   return store.exercises.find((e) => e.canonical_name === canonicalName) ?? null;
 }
 
+export function storeFindExerciseByNameOrAlias(name: string): Exercise | null {
+  const lower = name.trim().toLowerCase();
+  return (
+    store.exercises.find(
+      (e) =>
+        e.name.toLowerCase() === lower ||
+        e.canonical_name.toLowerCase() === lower ||
+        e.aliases.some((a) => a.toLowerCase() === lower)
+    ) ?? null
+  );
+}
+
 export function storeCreateUnreviewedExercise(name: string, aliases: string[]): Exercise {
   const canonical = name
     .toLowerCase()
@@ -159,4 +176,77 @@ export function storeCreateUnreviewedExercise(name: string, aliases: string[]): 
 
 export function storeUnreviewedExercises(): Exercise[] {
   return store.exercises.filter((e) => e.status === "unreviewed" || e.notes?.includes("status:unreviewed"));
+}
+
+// ---- Canonical exercises / mappings ----
+export function storeCanonicalExercises(): CanonicalExercise[] {
+  return [...store.canonicalExercises];
+}
+
+export function storeCanonicalMappings(): ExerciseCanonicalMapping[] {
+  return [...store.canonicalMappings];
+}
+
+function toCanonicalName(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function ensureExerciseForCanonical(canonical: CanonicalExercise): Exercise {
+  const existing =
+    store.exercises.find((e) => e.name.toLowerCase() === canonical.name.toLowerCase()) ??
+    store.exercises.find((e) => e.canonical_name === toCanonicalName(canonical.name));
+  if (existing) return existing;
+
+  const created: Exercise = {
+    id: crypto.randomUUID(),
+    name: canonical.name,
+    canonical_name: toCanonicalName(canonical.name),
+    aliases: [canonical.name],
+    muscle_groups: [],
+    tags: [canonical.category === "other" ? "compound" : canonical.category],
+    created_at: new Date().toISOString(),
+    status: "active",
+  };
+  store.exercises.push(created);
+  return created;
+}
+
+export function storeMapExerciseToCanonical(
+  exerciseId: string,
+  canonicalExerciseId: string
+): { remappedSets: number } {
+  const canonical = store.canonicalExercises.find((c) => c.id === canonicalExerciseId);
+  if (!canonical) return { remappedSets: 0 };
+  const source = store.exercises.find((e) => e.id === exerciseId);
+  if (!source) return { remappedSets: 0 };
+
+  const canonicalExercise = ensureExerciseForCanonical(canonical);
+  if (source.id === canonicalExercise.id) {
+    return { remappedSets: 0 };
+  }
+
+  let remappedSets = 0;
+  store.sets = store.sets.map((set) => {
+    if (set.exercise_id === source.id) {
+      remappedSets += 1;
+      return { ...set, exercise_id: canonicalExercise.id };
+    }
+    return set;
+  });
+
+  store.canonicalMappings = [
+    ...store.canonicalMappings.filter((m) => m.exercise_id !== source.id),
+    {
+      id: crypto.randomUUID(),
+      exercise_id: source.id,
+      canonical_exercise_id: canonicalExerciseId,
+      created_at: new Date().toISOString(),
+    },
+  ];
+
+  source.notes = `status:mapped;canonical:${canonical.name}`;
+  source.status = "active";
+  source.aliases = Array.from(new Set([...source.aliases, source.name]));
+
+  return { remappedSets };
 }
