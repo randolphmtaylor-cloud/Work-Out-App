@@ -361,3 +361,24 @@ export function buildNextPhase(current: TrainingPhase): TrainingPhase {
     created_at: new Date().toISOString(),
   };
 }
+
+export function buildDefaultPhase(userId: string): TrainingPhase {
+  const start = new Date();
+  const end = new Date();
+  end.setDate(end.getDate() + 21);
+
+  return {
+    id: crypto.randomUUID(),
+    user_id: userId,
+    name: "Accumulation",
+    phase_type: "accumulation",
+    phase_number: 1,
+    start_date: start.toISOString().split("T")[0],
+    end_date: end.toISOString().split("T")[0],
+    rep_range_low: PHASE_CONFIGS.accumulation.reps_low,
+    rep_range_high: PHASE_CONFIGS.accumulation.reps_high,
+    description: "Starter hypertrophy block — moderate loads, 8–12 reps, volume building. Focus on feeling each rep.",
+    is_active: true,
+    created_at: new Date().toISOString(),
+  };
+}

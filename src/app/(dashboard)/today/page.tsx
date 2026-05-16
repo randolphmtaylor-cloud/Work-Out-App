@@ -9,6 +9,7 @@ export default async function TodayPage() {
   const { userId } = await getCurrentUserId();
 
   let routine = await getTodayRoutine(userId);
+  let hasActivePhase = true;
 
   if (!routine) {
     const [phase, recentSessions, allSets] = await Promise.all([
@@ -16,10 +17,11 @@ export default async function TodayPage() {
       getRecentSessions(userId, 14),
       getAllSets(userId),
     ]);
+    hasActivePhase = Boolean(phase);
     if (phase) {
       routine = generateRoutine({ phase, recentSessions, allSets, userId });
     }
   }
 
-  return <TodayWorkoutPanel routine={routine} displayDate={formatDisplay(today)} />;
+  return <TodayWorkoutPanel routine={routine} displayDate={formatDisplay(today)} hasActivePhase={hasActivePhase} />;
 }

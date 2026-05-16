@@ -238,6 +238,39 @@ export async function advancePhaseInStore(next: TrainingPhase): Promise<void> {
   if (insertError) logSupabaseError("advancePhaseInStore insert failed", insertError);
 }
 
+export async function createDefaultActivePhase(phase: TrainingPhase): Promise<TrainingPhase | null> {
+  if (isDemo()) {
+    const { storeAdvancePhase } = await import("@/lib/store");
+    storeAdvancePhase(phase);
+    return phase;
+  }
+  if (!isValidUuid(phase.user_id)) {
+    console.error("[data] createDefaultActivePhase invalid userId", phase.user_id);
+    return null;
+  }
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { error: deactivateError } = await supabase
+    .from("training_phases")
+    .update({ is_active: false })
+    .eq("user_id", phase.user_id);
+  if (deactivateError) {
+    logSupabaseError("createDefaultActivePhase deactivate failed", deactivateError);
+    return null;
+  }
+
+  const { data, error: insertError } = await supabase
+    .from("training_phases")
+    .insert(phase)
+    .select("*")
+    .single();
+  if (insertError || !data) {
+    logSupabaseError("createDefaultActivePhase insert failed", insertError);
+    return null;
+  }
+  return data;
+}
+
 // ---------------------------------------------------------------
 // Routines
 // ---------------------------------------------------------------
@@ -268,20 +301,24 @@ export async function getTodayRoutine(userId: string): Promise<GeneratedRoutine 
   return data ?? null;
 }
 
-export async function saveGeneratedRoutine(routine: GeneratedRoutine): Promise<void> {
+export async function saveGeneratedRoutine(routine: GeneratedRoutine): Promise<{ saved: boolean; error?: string }> {
   if (isDemo()) {
     const { storeUpsertRoutine } = await import("@/lib/store");
     storeUpsertRoutine(routine);
-    return;
+    return { saved: true };
   }
   if (!isValidUuid(routine.user_id)) {
     console.error("[data] saveGeneratedRoutine invalid userId", routine.user_id);
-    return;
+    return { saved: false, error: "Invalid user id" };
   }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
   const { error } = await supabase.from("generated_routines").upsert(routine);
-  if (error) logSupabaseError("saveGeneratedRoutine failed", error);
+  if (error) {
+    logSupabaseError("saveGeneratedRoutine failed", error);
+    return { saved: false, error: error.message ?? "Routine save failed" };
+  }
+  return { saved: true };
 }
 
 export async function markRoutineComplete(routineId: string, sessionId: string): Promise<void> {

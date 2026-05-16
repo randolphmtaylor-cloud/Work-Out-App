@@ -22,9 +22,10 @@ const TYPE_BADGE: Record<string, "push" | "pull" | "legs" | "core" | "home" | "s
 interface Props {
   routine: GeneratedRoutine | null;
   displayDate: string;
+  hasActivePhase: boolean;
 }
 
-export function TodayWorkoutPanel({ routine, displayDate }: Props) {
+export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase }: Props) {
   const [mode, setMode] = useState<"gym" | "home">("gym");
   const badgeVariant = routine ? TYPE_BADGE[routine.workout_type] ?? "secondary" : "secondary";
 
@@ -100,8 +101,15 @@ export function TodayWorkoutPanel({ routine, displayDate }: Props) {
         </>
       ) : (
         <Card>
-          <CardContent className="p-8 text-center text-zinc-500">
-            No active training phase. Switch to Home Workout to log calisthenics today.
+          <CardContent className="space-y-3 p-8 text-center text-zinc-500">
+            <p>
+              {hasActivePhase
+                ? "No routine is saved for today yet. Use New Routine to generate one."
+                : "No active training phase is selected. New Routine will create a starter Accumulation phase and generate today's workout."}
+            </p>
+            <p className="text-xs">
+              Home Workout still works independently if you want to log calisthenics manually today.
+            </p>
           </CardContent>
         </Card>
       )}
