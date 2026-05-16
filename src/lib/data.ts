@@ -13,10 +13,18 @@ import {
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
 import { DEFAULT_CANONICAL_EXERCISES } from "@/lib/canonical-exercises";
+import { getSupabasePublicEnv } from "@/lib/supabase/config";
+
+export interface InsertSessionWithSetsResult {
+  inserted: boolean;
+  skipped: boolean;
+  sessionId: string;
+  setsInserted: number;
+  error?: string;
+}
 
 export const isDemo = () =>
-  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL.includes("placeholder");
+  !getSupabasePublicEnv().isConfigured;
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -24,7 +32,23 @@ const UUID_REGEX =
 const isValidUuid = (value: string) => UUID_REGEX.test(value);
 
 function logSupabaseError(context: string, error: unknown) {
-  console.error(`[data] ${context}`, error);
+  const supabaseError =
+    error && typeof error === "object"
+      ? (error as {
+          message?: unknown;
+          code?: unknown;
+          details?: unknown;
+          hint?: unknown;
+        })
+      : null;
+
+  console.error(`[data] ${context}`, {
+    message: supabaseError?.message,
+    code: supabaseError?.code,
+    details: supabaseError?.details,
+    hint: supabaseError?.hint,
+    error,
+  });
 }
 
 function toCanonicalName(name: string) {
@@ -163,7 +187,7 @@ export async function getActivePhase(userId: string): Promise<TrainingPhase | nu
     .select("*")
     .eq("user_id", userId)
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
   if (error) {
     logSupabaseError("getActivePhase failed", error);
     return null;
@@ -236,7 +260,7 @@ export async function getTodayRoutine(userId: string): Promise<GeneratedRoutine 
     .eq("date", today)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
   if (error) {
     logSupabaseError("getTodayRoutine failed", error);
     return null;
@@ -299,7 +323,7 @@ export async function getLatestSummary(userId: string): Promise<WeeklySummary | 
     .eq("user_id", userId)
     .order("week_start", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
   if (error) {
     logSupabaseError("getLatestSummary failed", error);
     return null;
@@ -484,27 +508,100 @@ export async function insertSessionWithSets(
   session: WorkoutSession,
   sets: WorkoutSet[]
 ): Promise<void> {
+  await insertSessionWithSetsIfNew(session, sets);
+}
+
+export async function insertSessionWithSetsIfNew(
+  session: WorkoutSession,
+  sets: WorkoutSet[]
+): Promise<InsertSessionWithSetsResult> {
   if (isDemo()) {
-    const { storeInsertSession, storeInsertSets } = await import("@/lib/store");
+    const { storeInsertSession, storeInsertSets, storeSessionExistsBySourceId } = await import("@/lib/store");
+    if (session.source_id && storeSessionExistsBySourceId(session.user_id, session.source_id)) {
+      return {
+        inserted: false,
+        skipped: true,
+        sessionId: session.id,
+        setsInserted: 0,
+      };
+    }
     storeInsertSession(session);
     storeInsertSets(sets);
-    return;
+    return {
+      inserted: true,
+      skipped: false,
+      sessionId: session.id,
+      setsInserted: sets.length,
+    };
   }
   if (!isValidUuid(session.user_id)) {
     console.error("[data] insertSessionWithSets invalid userId", session.user_id);
-    return;
+    return {
+      inserted: false,
+      skipped: false,
+      sessionId: session.id,
+      setsInserted: 0,
+      error: "Invalid user id",
+    };
   }
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
+
+  if (session.source_id) {
+    const { data: existing, error: existingError } = await supabase
+      .from("workout_sessions")
+      .select("id")
+      .eq("user_id", session.user_id)
+      .eq("source_id", session.source_id)
+      .maybeSingle();
+
+    if (existingError) {
+      logSupabaseError("insertSessionWithSets duplicate lookup failed", existingError);
+    }
+
+    if (existing) {
+      return {
+        inserted: false,
+        skipped: true,
+        sessionId: existing.id,
+        setsInserted: 0,
+      };
+    }
+  }
+
   const { error: sessionError } = await supabase.from("workout_sessions").insert(session);
   if (sessionError) {
     logSupabaseError("insertSessionWithSets session insert failed", sessionError);
-    return;
+    const code = typeof sessionError === "object" && sessionError && "code" in sessionError
+      ? String(sessionError.code)
+      : "";
+    return {
+      inserted: false,
+      skipped: code === "23505",
+      sessionId: session.id,
+      setsInserted: 0,
+      error: code === "23505" ? undefined : "Session insert failed",
+    };
   }
   if (sets.length > 0) {
     const { error: setsError } = await supabase.from("workout_sets").insert(sets);
-    if (setsError) logSupabaseError("insertSessionWithSets sets insert failed", setsError);
+    if (setsError) {
+      logSupabaseError("insertSessionWithSets sets insert failed", setsError);
+      return {
+        inserted: true,
+        skipped: false,
+        sessionId: session.id,
+        setsInserted: 0,
+        error: "Set insert failed",
+      };
+    }
   }
+  return {
+    inserted: true,
+    skipped: false,
+    sessionId: session.id,
+    setsInserted: sets.length,
+  };
 }
 
 export async function mapUnreviewedExerciseToCanonical(

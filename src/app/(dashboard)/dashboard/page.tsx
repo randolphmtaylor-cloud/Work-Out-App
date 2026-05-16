@@ -12,7 +12,7 @@ import {
   getAllSets,
 } from "@/lib/data";
 import { computeAnalytics } from "@/lib/analytics";
-import { DEMO_USER_ID } from "@/lib/constants/demo";
+import { getAuthStatus } from "@/lib/auth/user";
 import { formatDisplay, formatShort, differenceInDays, parseISO } from "@/lib/utils/dates";
 import type { GeneratedRoutine, TrainingPhase, WeeklySummary, WorkoutSession, WorkoutSet } from "@/types";
 
@@ -22,15 +22,18 @@ export default async function DashboardPage() {
   let summary: WeeklySummary | null = null;
   let todayRoutine: GeneratedRoutine | null = null;
   let allSets: WorkoutSet[] = [];
+  const auth = await getAuthStatus();
 
   try {
-    [phase, sessions, summary, todayRoutine, allSets] = await Promise.all([
-      getActivePhase(DEMO_USER_ID),
-      getRecentSessions(DEMO_USER_ID, 30),
-      getLatestSummary(DEMO_USER_ID),
-      getTodayRoutine(DEMO_USER_ID),
-      getAllSets(DEMO_USER_ID),
-    ]);
+    if (auth.userId) {
+      [phase, sessions, summary, todayRoutine, allSets] = await Promise.all([
+        getActivePhase(auth.userId),
+        getRecentSessions(auth.userId, 30),
+        getLatestSummary(auth.userId),
+        getTodayRoutine(auth.userId),
+        getAllSets(auth.userId),
+      ]);
+    }
   } catch (error) {
     console.error("[dashboard] failed to load data, rendering fallback", error);
   }
@@ -63,6 +66,22 @@ export default async function DashboardPage() {
           </Button>
         </Link>
       </div>
+
+      {!auth.isAuthenticated && !auth.isLocalMode && (
+        <Card className="border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-indigo-950 dark:text-indigo-100">Sign in to sync/import logs</p>
+              <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                Your Supabase project is configured, but no account session is active in this browser.
+              </p>
+            </div>
+            <Button asChild variant="accent" size="sm" className="shrink-0">
+              <Link href="/login">Sign In</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

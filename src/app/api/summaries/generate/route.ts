@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { generateWeeklySummary } from "@/lib/ai/client";
 import { AI_NOT_CONFIGURED_MESSAGE, isAIConfigured } from "@/lib/ai/config";
-import { getActivePhase, getSessions, getAllSets, saveSummary } from "@/lib/data";
-import { MOCK_EXERCISES } from "@/lib/mock-data";
+import { getActivePhase, getSessions, getAllSets, saveSummary, getExercises } from "@/lib/data";
 import { WeeklySummaryStats, WeeklySummary } from "@/types";
-import { DEMO_USER_ID } from "@/lib/constants/demo";
-
-const DEMO_USER = DEMO_USER_ID;
+import { getCurrentUserId } from "@/lib/auth/user";
 
 function isoWeekBounds(): { start: string; end: string } {
   const now = new Date();
@@ -20,11 +17,17 @@ function isoWeekBounds(): { start: string; end: string } {
 }
 
 export async function POST() {
+  const { userId, error: userError } = await getCurrentUserId({ requireAuth: true });
+  if (!userId) {
+    return NextResponse.json({ error: userError ?? "Sign in is required before generating summaries." }, { status: 401 });
+  }
+
   try {
-    const [phase, sessions, allSets] = await Promise.all([
-      getActivePhase(DEMO_USER),
-      getSessions(DEMO_USER),
-      getAllSets(DEMO_USER),
+    const [phase, sessions, allSets, exercises] = await Promise.all([
+      getActivePhase(userId),
+      getSessions(userId),
+      getAllSets(userId),
+      getExercises(),
     ]);
 
     const { start, end } = isoWeekBounds();
@@ -32,7 +35,7 @@ export async function POST() {
     const sessionIds = new Set(weekSessions.map((s) => s.id));
     const weekSets = allSets.filter((s) => sessionIds.has(s.session_id));
 
-    const exerciseMap = new Map(MOCK_EXERCISES.map((e) => [e.id, e.name]));
+    const exerciseMap = new Map(exercises.map((e) => [e.id, e.name]));
 
     // Build top lifts: best set per exercise this week
     const topLiftMap = new Map<string, { weight: number; reps: number }>();
@@ -62,7 +65,7 @@ export async function POST() {
 
     const summary: WeeklySummary = {
       id: crypto.randomUUID(),
-      user_id: DEMO_USER,
+      user_id: userId,
       week_start: start,
       week_end: end,
       summary_text: summaryText,
@@ -79,7 +82,7 @@ export async function POST() {
     return NextResponse.json(
       {
         id: crypto.randomUUID(),
-        user_id: DEMO_USER,
+        user_id: userId,
         week_start: new Date().toISOString().split("T")[0],
         week_end: new Date().toISOString().split("T")[0],
         summary_text: AI_NOT_CONFIGURED_MESSAGE,

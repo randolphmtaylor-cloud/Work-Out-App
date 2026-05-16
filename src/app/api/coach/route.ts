@@ -3,9 +3,7 @@ import { z } from "zod";
 import { streamCoachAnswer } from "@/lib/ai/client";
 import { AI_NOT_CONFIGURED_MESSAGE, isAIConfigured } from "@/lib/ai/config";
 import { getActivePhase, getAllSets, getSessions } from "@/lib/data";
-import { DEMO_USER_ID } from "@/lib/constants/demo";
-
-const DEMO_USER = DEMO_USER_ID;
+import { getCurrentUserId } from "@/lib/auth/user";
 
 const RequestSchema = z.object({
   question: z.string().min(1).max(500),
@@ -42,10 +40,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const { userId } = await getCurrentUserId();
     const [phase, sessions, allSets] = await Promise.all([
-      getActivePhase(DEMO_USER),
-      getSessions(DEMO_USER),
-      getAllSets(DEMO_USER),
+      getActivePhase(userId),
+      getSessions(userId),
+      getAllSets(userId),
     ]);
     const stream = await streamCoachAnswer(question, sessions, allSets, phase, history);
     return new Response(stream, {

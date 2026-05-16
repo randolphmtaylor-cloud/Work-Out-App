@@ -24,6 +24,7 @@ export type WorkoutTag =
   | "lower"
   | "full_body"
   | "core"
+  | "home"
   | "compound"
   | "isolation";
 
@@ -115,6 +116,9 @@ export interface WorkoutSession {
   raw_text?: string;
   duration_minutes?: number;
   phase_id?: string;
+  source_id?: string;
+  import_batch?: string;
+  imported_at?: string;
   phase?: TrainingPhase;
   sets?: WorkoutSet[];
   created_at: string;
@@ -135,6 +139,9 @@ export interface WorkoutSet {
   notes?: string;
   is_warmup: boolean;
   rpe?: number; // Rate of Perceived Exertion 1–10
+  source_id?: string;
+  import_batch?: string;
+  imported_at?: string;
   created_at: string;
 }
 

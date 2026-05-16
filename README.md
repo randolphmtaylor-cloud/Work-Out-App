@@ -31,7 +31,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-> **Demo mode:** The app works immediately without API keys using built-in sample data. Connect Supabase and Anthropic to unlock persistence and AI features.
+> **Local-only mode:** The app works immediately without Supabase using built-in sample data. Add Supabase env vars and sign in at `/login` to persist imports and manual logs under your authenticated user.
 
 ## Setup Guide
 
@@ -42,6 +42,17 @@ Open [http://localhost:3000](http://localhost:3000).
 3. Run the schema migrations in the Supabase SQL editor:
    - `supabase/migrations/001_initial_schema.sql`
    - `supabase/migrations/002_seed_data.sql`
+   - `supabase/migrations/003_workout_categories.sql`
+   - `supabase/migrations/004_workout_import_metadata.sql`
+
+4. In **Authentication → Providers → Email**, verify the sign-in method you want:
+   - Enable **Email provider** for magic links.
+   - Enable email/password sign-ups if you want the `/login` password flow to create accounts.
+5. In **Authentication → URL Configuration**, add your local and deployed callback URLs:
+   - `http://localhost:3000/auth/callback`
+   - `https://YOUR_DOMAIN/auth/callback`
+
+When Supabase is configured, imports and manual workout logs require sign-in and are saved with the authenticated `auth.users.id` as `user_id`. Dashboard, history, progress, coach, and routine data load from Supabase for that user after login.
 
 ### Anthropic API
 
@@ -79,6 +90,7 @@ Add all environment variables in the Vercel dashboard under **Settings → Envir
 
 | Route        | Description                                  |
 |--------------|----------------------------------------------|
+| `/login`     | Supabase email/password, account creation, and magic link sign-in |
 | `/dashboard` | Home: stats, phase progress, today's preview |
 | `/today`     | Today's generated workout with set tracking  |
 | `/history`   | All past sessions grouped by month           |

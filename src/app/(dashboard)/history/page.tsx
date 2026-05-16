@@ -1,19 +1,20 @@
 import { Calendar, Clock, Dumbbell } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getSessions, getSetsForSessions, getActivePhase } from "@/lib/data";
-import { MOCK_EXERCISES } from "@/lib/mock-data";
+import { getSessions, getSetsForSessions, getExercises } from "@/lib/data";
 import { formatDisplay } from "@/lib/utils/dates";
-import { DEMO_USER_ID } from "@/lib/constants/demo";
-
-const DEMO_USER = DEMO_USER_ID;
+import { getCurrentUserId } from "@/lib/auth/user";
 
 export default async function HistoryPage() {
-  const sessions = await getSessions(DEMO_USER);
+  const { userId } = await getCurrentUserId();
+  const sessions = await getSessions(userId);
   const sessionIds = sessions.map((s) => s.id);
-  const allSets = await getSetsForSessions(sessionIds);
+  const [allSets, exercises] = await Promise.all([
+    getSetsForSessions(sessionIds),
+    getExercises(),
+  ]);
 
-  const exerciseMap = new Map(MOCK_EXERCISES.map((e) => [e.id, e.name]));
+  const exerciseMap = new Map(exercises.map((e) => [e.id, e.name]));
 
   const sessionsWithSets = sessions.map((session) => {
     const sets = allSets.filter((s) => s.session_id === session.id);
@@ -36,6 +37,9 @@ export default async function HistoryPage() {
     manual: "Manual",
     generated: "Generated",
   };
+
+  const sessionLabel = (session: { source: string; notes?: string }) =>
+    session.notes?.includes("Home Workout") ? "Home Workout" : SOURCE_LABELS[session.source] ?? session.source;
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
@@ -87,8 +91,11 @@ export default async function HistoryPage() {
                       </div>
 
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <Badge variant="outline" className="text-xs">
-                          {SOURCE_LABELS[session.source] ?? session.source}
+                        <Badge
+                          variant={session.notes?.includes("Home Workout") ? "home" : "outline"}
+                          className="text-xs"
+                        >
+                          {sessionLabel(session)}
                         </Badge>
                         {session.sets.length > 0 && (
                           <span className="text-xs text-zinc-400 dark:text-zinc-500 flex items-center gap-0.5">

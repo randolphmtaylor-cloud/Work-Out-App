@@ -3,9 +3,7 @@ import { parseWorkoutText } from "@/lib/parsers/text-parser";
 import { normalizeExerciseName } from "@/lib/parsers/normalize";
 import { insertSessionWithSets, getActivePhase, getExercises, createUnreviewedExercise } from "@/lib/data";
 import { WorkoutSession, WorkoutSet } from "@/types";
-import { DEMO_USER_ID } from "@/lib/constants/demo";
-
-const DEMO_USER = DEMO_USER_ID;
+import { getCurrentUserId } from "@/lib/auth/user";
 
 // exercise canonical_name → id
 const buildExMap = (exercises: Array<{ id: string; canonical_name: string; name: string; aliases: string[] }>): Map<string, string> => {
@@ -19,6 +17,11 @@ const buildExMap = (exercises: Array<{ id: string; canonical_name: string; name:
 };
 
 export async function POST(req: NextRequest) {
+  const { userId, error: userError } = await getCurrentUserId({ requireAuth: true });
+  if (!userId) {
+    return NextResponse.json({ error: userError ?? "Sign in is required before importing workouts." }, { status: 401 });
+  }
+
   const contentType = req.headers.get("content-type") ?? "";
   let rawText = "";
   let fileType: WorkoutSession["source"] = "import_text";
@@ -64,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   const exercises = await getExercises();
   const exMap = buildExMap(exercises);
-  const phase = await getActivePhase(DEMO_USER);
+  const phase = await getActivePhase(userId);
   const createdUnreviewed = new Set<string>();
   let totalSessions = 0;
   let totalSets = 0;
@@ -111,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     const session: WorkoutSession = {
       id: sessionId,
-      user_id: DEMO_USER,
+      user_id: userId,
       date: day.date ?? new Date().toISOString().split("T")[0],
       source: fileType,
       raw_text: day.raw_text,

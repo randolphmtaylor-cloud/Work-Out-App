@@ -30,7 +30,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TYPE workout_tag AS ENUM (
     'push', 'pull', 'legs', 'upper', 'lower',
-    'full_body', 'core', 'compound', 'isolation'
+    'full_body', 'core', 'home', 'compound', 'isolation'
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -147,6 +147,9 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
   raw_text         TEXT,
   duration_minutes INT,
   phase_id         TEXT        REFERENCES training_phases(id) ON DELETE SET NULL,
+  source_id        TEXT,
+  import_batch     TEXT,
+  imported_at      TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -156,6 +159,12 @@ CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_phase
   ON workout_sessions (user_id, phase_id);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_date
   ON workout_sessions (date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sessions_user_source_id
+  ON workout_sessions (user_id, source_id)
+  WHERE source_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_import_batch
+  ON workout_sessions (user_id, import_batch)
+  WHERE import_batch IS NOT NULL;
 
 
 -- 3c. workout_sets
@@ -170,6 +179,9 @@ CREATE TABLE IF NOT EXISTS workout_sets (
   notes            TEXT,
   is_warmup        BOOLEAN     NOT NULL DEFAULT FALSE,
   rpe              NUMERIC(3, 1),
+  source_id        TEXT,
+  import_batch     TEXT,
+  imported_at      TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT workout_sets_rpe_range CHECK (rpe IS NULL OR (rpe >= 1 AND rpe <= 10)),
   CONSTRAINT workout_sets_set_number_positive CHECK (set_number >= 1)
@@ -181,6 +193,12 @@ CREATE INDEX IF NOT EXISTS idx_workout_sets_exercise
   ON workout_sets (exercise_id);
 CREATE INDEX IF NOT EXISTS idx_workout_sets_session_exercise
   ON workout_sets (session_id, exercise_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sets_source_id
+  ON workout_sets (source_id)
+  WHERE source_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_workout_sets_import_batch
+  ON workout_sets (import_batch)
+  WHERE import_batch IS NOT NULL;
 
 
 -- 3d. generated_routines
@@ -308,7 +326,8 @@ CREATE TRIGGER trg_user_preferences_updated_at
 -- 4. Row Level Security
 -- ---------------------------------------------------------------
 
--- Reference tables: authenticated users can read; only service role writes
+-- Reference tables: authenticated users can read and create exercises
+-- discovered while logging/importing workouts.
 ALTER TABLE equipment           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exercise_definitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE canonical_exercises ENABLE ROW LEVEL SECURITY;
@@ -319,6 +338,12 @@ CREATE POLICY "Public read equipment"
 
 CREATE POLICY "Public read exercise_definitions"
   ON exercise_definitions FOR SELECT TO authenticated USING (TRUE);
+
+CREATE POLICY "Authenticated users can create exercise_definitions"
+  ON exercise_definitions FOR INSERT TO authenticated WITH CHECK (TRUE);
+
+CREATE POLICY "Authenticated users can update exercise_definitions"
+  ON exercise_definitions FOR UPDATE TO authenticated USING (TRUE) WITH CHECK (TRUE);
 
 CREATE POLICY "Public read canonical_exercises"
   ON canonical_exercises FOR SELECT TO authenticated USING (TRUE);
@@ -538,6 +563,86 @@ VALUES
    'eq-7',
    ARRAY['shoulders','triceps']::muscle_group[],
    ARRAY['push','upper','compound']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-run', 'Run',
+   'run',
+   ARRAY['running','jog'],
+   NULL,
+   ARRAY['full_body']::muscle_group[],
+   ARRAY['home','full_body']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-push-ups', 'Push Ups',
+   'push-ups',
+   ARRAY['pushups','push up'],
+   NULL,
+   ARRAY['chest','shoulders','triceps']::muscle_group[],
+   ARRAY['home','push','upper']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-squats', 'Squats',
+   'squats',
+   ARRAY['bodyweight squats'],
+   NULL,
+   ARRAY['quads','glutes','hamstrings']::muscle_group[],
+   ARRAY['home','legs','lower']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-romanian-dead-lifts', 'Romanian Dead Lifts',
+   'romanian-dead-lifts',
+   ARRAY['rdl','rdls'],
+   NULL,
+   ARRAY['hamstrings','glutes','back']::muscle_group[],
+   ARRAY['home','legs','lower']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-sit-ups', 'Sit Ups',
+   'sit-ups',
+   ARRAY['situps'],
+   NULL,
+   ARRAY['core']::muscle_group[],
+   ARRAY['home','core']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-planks', 'Planks',
+   'planks',
+   ARRAY['plank'],
+   NULL,
+   ARRAY['core']::muscle_group[],
+   ARRAY['home','core']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-lunges', 'Lunges',
+   'lunges',
+   ARRAY['bodyweight lunges'],
+   NULL,
+   ARRAY['quads','glutes','hamstrings']::muscle_group[],
+   ARRAY['home','legs','lower']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-burpees', 'Burpees',
+   'burpees',
+   ARRAY['burpee'],
+   NULL,
+   ARRAY['full_body']::muscle_group[],
+   ARRAY['home','compound']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-pull-ups-rows', 'Pull Ups / Rows',
+   'pull-ups-rows',
+   ARRAY['pull ups','rows','inverted rows'],
+   NULL,
+   ARRAY['back','biceps']::muscle_group[],
+   ARRAY['home','pull','upper']::workout_tag[],
+   '2024-01-01T00:00:00Z'),
+
+  ('home-jumping-jacks', 'Jumping Jacks',
+   'jumping-jacks',
+   ARRAY['jumping jack'],
+   NULL,
+   ARRAY['full_body']::muscle_group[],
+   ARRAY['home','full_body']::workout_tag[],
    '2024-01-01T00:00:00Z')
 ON CONFLICT (id) DO NOTHING;
 

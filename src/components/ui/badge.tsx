@@ -29,6 +29,8 @@ const badgeVariants = cva(
           "border-transparent bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
         core:
           "border-transparent bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300",
+        home:
+          "border-transparent bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
       },
     },
     defaultVariants: { variant: "default" },

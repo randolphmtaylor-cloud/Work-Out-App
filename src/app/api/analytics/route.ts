@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSessions, getAllSets } from "@/lib/data";
 import { computeAnalytics } from "@/lib/analytics";
-import { DEMO_USER_ID } from "@/lib/constants/demo";
-
-const DEMO_USER = DEMO_USER_ID;
+import { getCurrentUserId } from "@/lib/auth/user";
 
 export async function GET() {
+  const { userId } = await getCurrentUserId();
   const [sessions, sets] = await Promise.all([
-    getSessions(DEMO_USER),
-    getAllSets(DEMO_USER),
+    getSessions(userId),
+    getAllSets(userId),
   ]);
   const analytics = computeAnalytics(sessions, sets);
   return NextResponse.json(analytics);

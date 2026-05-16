@@ -49,6 +49,10 @@ export function storeInsertSession(session: WorkoutSession): void {
   store.sessions.push(session);
 }
 
+export function storeSessionExistsBySourceId(userId: string, sourceId: string): boolean {
+  return store.sessions.some((s) => s.user_id === userId && s.source_id === sourceId);
+}
+
 // ---- Sets ----
 export function storeSets(): WorkoutSet[] {
   return store.sets;
@@ -61,7 +65,16 @@ export function storeSetsForSessions(sessionIds: string[]): WorkoutSet[] {
 
 export function storeInsertSets(sets: WorkoutSet[]): void {
   const existingIds = new Set(store.sets.map((s) => s.id));
-  store.sets.push(...sets.filter((s) => !existingIds.has(s.id)));
+  const existingSourceIds = new Set(
+    store.sets.map((s) => s.source_id).filter((sourceId): sourceId is string => Boolean(sourceId))
+  );
+  store.sets.push(
+    ...sets.filter((s) => {
+      if (existingIds.has(s.id)) return false;
+      if (s.source_id && existingSourceIds.has(s.source_id)) return false;
+      return true;
+    })
+  );
 }
 
 export function storeUpdateSet(id: string, patch: Partial<WorkoutSet>): void {

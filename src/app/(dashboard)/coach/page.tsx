@@ -5,10 +5,7 @@ import { CoachChat } from "@/components/coach/coach-chat";
 import { SummaryPanel } from "@/components/coach/summary-panel";
 import { isAIConfigured } from "@/lib/ai/config";
 import { getLatestSummary, getActivePhase } from "@/lib/data";
-import { formatShort } from "@/lib/utils/dates";
-import { DEMO_USER_ID } from "@/lib/constants/demo";
-
-const DEMO_USER = DEMO_USER_ID;
+import { getCurrentUserId } from "@/lib/auth/user";
 
 const QUICK_QUESTIONS = [
   "How am I doing?",
@@ -22,9 +19,10 @@ const QUICK_QUESTIONS = [
 
 export default async function CoachPage() {
   const aiEnabled = isAIConfigured();
+  const { userId } = await getCurrentUserId();
   const [summary, phase] = await Promise.all([
-    getLatestSummary(DEMO_USER),
-    getActivePhase(DEMO_USER),
+    getLatestSummary(userId),
+    getActivePhase(userId),
   ]);
 
   return (
