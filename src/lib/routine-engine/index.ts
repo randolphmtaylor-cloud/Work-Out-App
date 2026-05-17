@@ -175,10 +175,14 @@ export interface RoutineGenerationInput {
   allSets: WorkoutSet[];
   workoutType?: WorkoutTag;
   userId: string;
+  exercises?: Exercise[];
+  equipment?: Array<{ id: string; name: string }>;
 }
 
 export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine {
   const { phase, recentSessions, allSets, userId } = input;
+  const library = (input.exercises?.length ? input.exercises : MOCK_EXERCISES).filter((exercise) => exercise.status !== "archived");
+  const equipmentLibrary = input.equipment?.length ? input.equipment : MOCK_EQUIPMENT;
   const cfg = PHASE_CONFIGS[phase.phase_type] ?? PHASE_CONFIGS.accumulation;
 
   const dayType = input.workoutType ?? nextDayType(recentSessions);
@@ -188,7 +192,7 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   const freq = exerciseFrequency(allSets);
 
   // Filter to exercises that match today's target muscles
-  const candidates = MOCK_EXERCISES.filter((ex) => {
+  const candidates = library.filter((ex) => {
     const muscles = new Set<string>(ex.muscle_groups);
     return [...targetMuscles].some((m) => muscles.has(m));
   });
@@ -246,7 +250,7 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
 
     const lastSet = bestRecentSet(ex.id, allSets, recentSessions);
     const targetWeight = suggestWeight(lastSet, cfg.reps_high);
-    const equipment = MOCK_EQUIPMENT.find((e) => e.id === ex.equipment_id);
+    const equipment = equipmentLibrary.find((e) => e.id === ex.equipment_id);
 
     let note: string | undefined;
     if (targetWeight && lastSet?.weight_lbs) {
@@ -277,13 +281,13 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   }
 
   // Always add 1 core exercise if budget allows
-  const coreExercises = MOCK_EXERCISES.filter((e) => e.tags.includes("core"));
+  const coreExercises = library.filter((e) => e.tags.includes("core"));
   // Pick one that wasn't done last session, or just the first
   const coreChoice =
     coreExercises.find((e) => !lastSessionExercises.has(e.id)) ?? coreExercises[0];
 
   if (coreChoice && minutesUsed + exerciseMinutes(coreChoice, 3) <= budgetMinutes) {
-    const coreEquipment = MOCK_EQUIPMENT.find((e) => e.id === coreChoice.equipment_id);
+    const coreEquipment = equipmentLibrary.find((e) => e.id === coreChoice.equipment_id);
     prescriptions.push({
       exercise_id: coreChoice.id,
       exercise_name: coreChoice.name,

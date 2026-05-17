@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseWorkoutText } from "@/lib/parsers/text-parser";
 import { normalizeExerciseName } from "@/lib/parsers/normalize";
-import { insertSessionWithSets, getActivePhase, getExercises, createUnreviewedExercise } from "@/lib/data";
+import {
+  createImportBatch,
+  insertSessionWithSets,
+  getActivePhase,
+  getExercises,
+  createUnreviewedExercise,
+  updateImportBatch,
+} from "@/lib/data";
 import { WorkoutSession, WorkoutSet } from "@/types";
 import { getCurrentUserId } from "@/lib/auth/user";
 
@@ -25,6 +32,7 @@ export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") ?? "";
   let rawText = "";
   let fileType: WorkoutSession["source"] = "import_text";
+  let source_file_name = "Pasted workout text";
 
   try {
     if (contentType.includes("application/json")) {
@@ -37,6 +45,7 @@ export async function POST(req: NextRequest) {
       if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
       const name = file.name.toLowerCase();
+      source_file_name = file.name;
       if (name.endsWith(".docx")) {
         fileType = "import_docx";
         const buf = Buffer.from(await file.arrayBuffer());
@@ -64,6 +73,15 @@ export async function POST(req: NextRequest) {
   // Parse
   const { days, warnings } = parseWorkoutText(rawText);
   if (!days.length) return NextResponse.json({ error: "No sessions found in input", warnings }, { status: 422 });
+
+  const importBatch = await createImportBatch(userId, {
+    source_file_name,
+    workout_count: days.length,
+    notes: `Imported via ${fileType}`,
+  });
+  if (!importBatch) {
+    return NextResponse.json({ error: "Could not create import tracking record" }, { status: 500 });
+  }
 
   const exercises = await getExercises();
   const exMap = buildExMap(exercises);
@@ -106,6 +124,7 @@ export async function POST(req: NextRequest) {
           reps: s.reps,
           weight_lbs: s.weight_lbs,
           is_warmup: false,
+          import_batch_id: importBatch.id,
           created_at: new Date(Date.now() + totalSets * 500).toISOString(),
         });
         totalSets++;
@@ -119,6 +138,7 @@ export async function POST(req: NextRequest) {
       source: fileType,
       raw_text: day.raw_text,
       phase_id: phase?.id,
+      import_batch_id: importBatch.id,
       created_at: new Date(Date.now() + totalSessions * 1000).toISOString(),
     };
 
@@ -126,8 +146,11 @@ export async function POST(req: NextRequest) {
     totalSessions++;
   }
 
+  await updateImportBatch(userId, importBatch.id, { workout_count: totalSessions });
+
   return NextResponse.json({
     success: true,
+    import_batch_id: importBatch.id,
     sessions_parsed: totalSessions,
     sets_parsed: totalSets,
     unreviewed_created: Array.from(createdUnreviewed),

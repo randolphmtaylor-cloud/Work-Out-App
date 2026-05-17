@@ -98,13 +98,13 @@ export default async function DashboardPage() {
         />
         <StatCard
           label="Last session"
-          value={lastSession ? formatShort(lastSession.date) : "—"}
+          value={lastSession ? formatShort(lastSession.date) : "none"}
           icon={<TrendingUp className="w-4 h-4 text-amber-500" />}
           sub={daysSinceLast !== null ? `${daysSinceLast}d ago` : undefined}
         />
         <StatCard
           label="Avg session"
-          value={`${Math.round(analytics.avgSessionDurationMin)}m`}
+          value={analytics.totalSessions > 0 ? `${Math.round(analytics.avgSessionDurationMin)}m` : "0m"}
           icon={<Flame className="w-4 h-4 text-orange-500" />}
           sub="target: ≤30m"
         />

@@ -20,6 +20,9 @@ export default async function ImportPage() {
         <Link href="/admin/exercises" className="text-xs text-indigo-600 hover:underline mt-2 inline-block">
           Review unreviewed exercises →
         </Link>
+        <Link href="/settings/import-history" className="ml-3 text-xs text-indigo-600 hover:underline mt-2 inline-block">
+          Import history →
+        </Link>
       </div>
 
       {!auth.isAuthenticated && !auth.isLocalMode && (

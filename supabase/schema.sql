@@ -79,6 +79,10 @@ CREATE TABLE IF NOT EXISTS exercise_definitions (
   name             TEXT        NOT NULL,
   canonical_name   TEXT        NOT NULL UNIQUE,
   aliases          TEXT[]      NOT NULL DEFAULT '{}',
+  library_category TEXT        NOT NULL DEFAULT 'Strength'
+                                   CHECK (library_category IN ('Strength', 'Calisthenics', 'Home Workout', 'Running/Cardio', 'Warmup', 'Recovery')),
+  phase_order      INT         NOT NULL DEFAULT 0,
+  archived_at      TIMESTAMPTZ,
   equipment_id     TEXT        REFERENCES equipment(id) ON DELETE SET NULL,
   muscle_groups    muscle_group[]  NOT NULL DEFAULT '{}',
   tags             workout_tag[]   NOT NULL DEFAULT '{}',
@@ -107,6 +111,8 @@ CREATE INDEX IF NOT EXISTS idx_exercise_definitions_name_trgm
   ON exercise_definitions USING gin (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_exercise_definitions_canonical
   ON exercise_definitions (canonical_name);
+CREATE INDEX IF NOT EXISTS idx_exercise_definitions_library_category
+  ON exercise_definitions (library_category, phase_order, name);
 
 
 -- ---------------------------------------------------------------
@@ -137,7 +143,20 @@ CREATE INDEX IF NOT EXISTS idx_training_phases_user_start
   ON training_phases (user_id, start_date DESC);
 
 
--- 3b. workout_sessions
+-- 3b. import_batches
+CREATE TABLE IF NOT EXISTS import_batches (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  source_file_name TEXT NOT NULL,
+  workout_count    INT NOT NULL DEFAULT 0 CHECK (workout_count >= 0),
+  notes            TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_batches_user_created
+  ON import_batches (user_id, created_at DESC);
+
+-- 3c. workout_sessions
 CREATE TABLE IF NOT EXISTS workout_sessions (
   id               TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
   user_id          UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -147,6 +166,7 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
   raw_text         TEXT,
   duration_minutes INT,
   phase_id         TEXT        REFERENCES training_phases(id) ON DELETE SET NULL,
+  import_batch_id UUID        REFERENCES import_batches(id) ON DELETE SET NULL,
   source_id        TEXT,
   import_batch     TEXT,
   imported_at      TIMESTAMPTZ,
@@ -165,9 +185,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sessions_user_source_id
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_import_batch
   ON workout_sessions (user_id, import_batch)
   WHERE import_batch IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_import_batch_id
+  ON workout_sessions (user_id, import_batch_id)
+  WHERE import_batch_id IS NOT NULL;
 
 
--- 3c. workout_sets
+-- 3d. workout_sets
 CREATE TABLE IF NOT EXISTS workout_sets (
   id               TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
   session_id       TEXT        NOT NULL REFERENCES workout_sessions(id) ON DELETE CASCADE,
@@ -179,6 +202,7 @@ CREATE TABLE IF NOT EXISTS workout_sets (
   notes            TEXT,
   is_warmup        BOOLEAN     NOT NULL DEFAULT FALSE,
   rpe              NUMERIC(3, 1),
+  import_batch_id UUID        REFERENCES import_batches(id) ON DELETE SET NULL,
   source_id        TEXT,
   import_batch     TEXT,
   imported_at      TIMESTAMPTZ,
@@ -199,9 +223,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sets_source_id
 CREATE INDEX IF NOT EXISTS idx_workout_sets_import_batch
   ON workout_sets (import_batch)
   WHERE import_batch IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_workout_sets_import_batch_id
+  ON workout_sets (import_batch_id)
+  WHERE import_batch_id IS NOT NULL;
 
 
--- 3d. generated_routines
+-- 3e. generated_routines
 --     warmup  → { description: string, duration_minutes: number }
 --     exercises → ExercisePrescription[]
 CREATE TABLE IF NOT EXISTS generated_routines (
@@ -279,6 +306,7 @@ CREATE TABLE IF NOT EXISTS raw_workout_entries (
   raw_text         TEXT        NOT NULL,
   parsed_data      JSONB,
   session_id       TEXT        REFERENCES workout_sessions(id) ON DELETE SET NULL,
+  import_batch_id  UUID        REFERENCES import_batches(id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -288,6 +316,9 @@ CREATE INDEX IF NOT EXISTS idx_raw_workout_entries_import_job
   ON raw_workout_entries (import_job_id);
 CREATE INDEX IF NOT EXISTS idx_raw_workout_entries_session
   ON raw_workout_entries (session_id);
+CREATE INDEX IF NOT EXISTS idx_raw_workout_entries_import_batch_id
+  ON raw_workout_entries (import_batch_id)
+  WHERE import_batch_id IS NOT NULL;
 
 
 -- 3h. user_preferences
@@ -353,6 +384,7 @@ CREATE POLICY "Public read exercise_canonical_mappings"
 
 -- User-scoped tables: each user sees/touches only their own rows
 ALTER TABLE training_phases     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE import_batches      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_sessions    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_sets        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE generated_routines  ENABLE ROW LEVEL SECURITY;
@@ -364,6 +396,12 @@ ALTER TABLE user_preferences    ENABLE ROW LEVEL SECURITY;
 -- training_phases
 CREATE POLICY "Users manage own phases"
   ON training_phases FOR ALL TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- import_batches
+CREATE POLICY "Users manage own import batches"
+  ON import_batches FOR ALL TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
@@ -420,6 +458,398 @@ CREATE POLICY "Users manage own preferences"
   ON user_preferences FOR ALL TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+CREATE OR REPLACE FUNCTION list_import_batches()
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  created_at TIMESTAMPTZ,
+  source_file_name TEXT,
+  workout_count INT,
+  notes TEXT,
+  session_count BIGINT,
+  set_count BIGINT
+)
+LANGUAGE SQL
+SECURITY INVOKER
+STABLE
+AS $$
+  SELECT
+    batch.id,
+    batch.user_id,
+    batch.created_at,
+    batch.source_file_name,
+    batch.workout_count,
+    batch.notes,
+    COUNT(DISTINCT session_row.id) AS session_count,
+    COUNT(set_row.id) AS set_count
+  FROM import_batches batch
+  LEFT JOIN workout_sessions session_row
+    ON session_row.import_batch_id = batch.id
+    AND session_row.user_id = batch.user_id
+  LEFT JOIN workout_sets set_row
+    ON set_row.session_id = session_row.id
+  WHERE batch.user_id = auth.uid()
+  GROUP BY batch.id
+  ORDER BY batch.created_at DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION preview_legacy_import_candidates()
+RETURNS TABLE (found INT, skipped INT, candidates JSONB)
+LANGUAGE plpgsql
+SECURITY INVOKER
+STABLE
+AS $$
+DECLARE
+  v_condition TEXT := '(source::text LIKE ''import_%'' OR imported_at IS NOT NULL OR import_batch IS NOT NULL OR source_id IS NOT NULL OR notes ILIKE ''%import%'')';
+  v_reason_extra TEXT := '';
+  v_found INT;
+  v_total_untagged INT;
+  v_candidates JSONB;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workout_sessions' AND column_name = 'source_file_name'
+  ) THEN
+    v_condition := v_condition || ' OR source_file_name IS NOT NULL';
+    v_reason_extra := v_reason_extra || ', CASE WHEN source_file_name IS NOT NULL THEN ''source_file_name'' END';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workout_sessions' AND column_name = 'created_by_import'
+  ) THEN
+    v_condition := v_condition || ' OR created_by_import IS TRUE';
+    v_reason_extra := v_reason_extra || ', CASE WHEN created_by_import IS TRUE THEN ''created_by_import'' END';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workout_sessions' AND column_name = 'is_imported'
+  ) THEN
+    v_condition := v_condition || ' OR is_imported IS TRUE';
+    v_reason_extra := v_reason_extra || ', CASE WHEN is_imported IS TRUE THEN ''is_imported'' END';
+  END IF;
+
+  SELECT COUNT(*)::INT
+    INTO v_total_untagged
+  FROM workout_sessions
+  WHERE user_id = auth.uid()
+    AND import_batch_id IS NULL;
+
+  EXECUTE 'SELECT COUNT(*)::INT FROM workout_sessions WHERE user_id = auth.uid() AND import_batch_id IS NULL AND (' || v_condition || ')'
+    INTO v_found;
+
+  EXECUTE
+    'SELECT COALESCE(jsonb_agg(row_data), ''[]''::jsonb)
+     FROM (
+       SELECT jsonb_build_object(
+         ''id'', id,
+         ''date'', date,
+         ''source'', source,
+         ''notes'', notes,
+         ''reason'', concat_ws('', '',
+           CASE WHEN source::text LIKE ''import_%'' THEN ''source='' || source::text END,
+           CASE WHEN imported_at IS NOT NULL THEN ''imported_at'' END,
+           CASE WHEN import_batch IS NOT NULL THEN ''import_batch'' END,
+           CASE WHEN source_id IS NOT NULL THEN ''source_id'' END,
+           CASE WHEN notes ILIKE ''%import%'' THEN ''notes mention import'' END' || v_reason_extra || '
+         )
+       ) AS row_data
+       FROM workout_sessions
+       WHERE user_id = auth.uid()
+         AND import_batch_id IS NULL
+         AND (' || v_condition || ')
+       ORDER BY date DESC, created_at DESC
+       LIMIT 25
+     ) preview_rows'
+    INTO v_candidates;
+
+  RETURN QUERY SELECT v_found, GREATEST(v_total_untagged - v_found, 0), v_candidates;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION undo_import_batch(p_import_batch_id UUID)
+RETURNS TABLE (sessions_deleted INT, sets_deleted INT)
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+  v_sets_deleted INT;
+  v_sessions_deleted INT;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM import_batches WHERE id = p_import_batch_id AND user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Import batch not found';
+  END IF;
+
+  SELECT COUNT(*)::INT
+    INTO v_sets_deleted
+  FROM workout_sets set_row
+  JOIN workout_sessions session_row
+    ON session_row.id = set_row.session_id
+  WHERE session_row.user_id = auth.uid()
+    AND session_row.import_batch_id = p_import_batch_id;
+
+  DELETE FROM raw_workout_entries
+  WHERE user_id = auth.uid()
+    AND import_batch_id = p_import_batch_id;
+
+  DELETE FROM workout_sessions
+  WHERE user_id = auth.uid()
+    AND import_batch_id = p_import_batch_id;
+
+  GET DIAGNOSTICS v_sessions_deleted = ROW_COUNT;
+
+  DELETE FROM import_batches
+  WHERE id = p_import_batch_id
+    AND user_id = auth.uid();
+
+  RETURN QUERY SELECT v_sessions_deleted, v_sets_deleted;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION delete_all_imported_history()
+RETURNS TABLE (batches_deleted INT, sessions_deleted INT, sets_deleted INT)
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+  v_batches_deleted INT;
+  v_sessions_deleted INT;
+  v_sets_deleted INT;
+BEGIN
+  SELECT COUNT(*)::INT
+    INTO v_batches_deleted
+  FROM import_batches
+  WHERE user_id = auth.uid();
+
+  SELECT COUNT(*)::INT
+    INTO v_sets_deleted
+  FROM workout_sets set_row
+  JOIN workout_sessions session_row
+    ON session_row.id = set_row.session_id
+  WHERE session_row.user_id = auth.uid()
+    AND session_row.import_batch_id IS NOT NULL;
+
+  DELETE FROM raw_workout_entries
+  WHERE user_id = auth.uid()
+    AND import_batch_id IS NOT NULL;
+
+  DELETE FROM workout_sessions
+  WHERE user_id = auth.uid()
+    AND import_batch_id IS NOT NULL;
+
+  GET DIAGNOSTICS v_sessions_deleted = ROW_COUNT;
+
+  DELETE FROM import_batches
+  WHERE user_id = auth.uid();
+
+  RETURN QUERY SELECT v_batches_deleted, v_sessions_deleted, v_sets_deleted;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION assign_legacy_import_batch()
+RETURNS TABLE (import_batch_id UUID, found INT, tagged INT, skipped INT)
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+  v_import_batch_id UUID;
+  v_condition TEXT := '(source::text LIKE ''import_%'' OR imported_at IS NOT NULL OR import_batch IS NOT NULL OR source_id IS NOT NULL OR notes ILIKE ''%import%'')';
+  v_total INT;
+  v_total_untagged INT;
+  v_tagged INT;
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workout_sessions' AND column_name = 'source_file_name'
+  ) THEN
+    v_condition := v_condition || ' OR source_file_name IS NOT NULL';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workout_sessions' AND column_name = 'created_by_import'
+  ) THEN
+    v_condition := v_condition || ' OR created_by_import IS TRUE';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workout_sessions' AND column_name = 'is_imported'
+  ) THEN
+    v_condition := v_condition || ' OR is_imported IS TRUE';
+  END IF;
+
+  SELECT COUNT(*)::INT
+    INTO v_total_untagged
+  FROM workout_sessions
+  WHERE user_id = auth.uid()
+    AND import_batch_id IS NULL;
+
+  EXECUTE 'SELECT COUNT(*)::INT FROM workout_sessions WHERE user_id = auth.uid() AND import_batch_id IS NULL AND (' || v_condition || ')'
+    INTO v_total;
+
+  IF v_total = 0 THEN
+    RETURN QUERY SELECT NULL::UUID, 0, 0, v_total_untagged;
+    RETURN;
+  END IF;
+
+  INSERT INTO import_batches (user_id, source_file_name, workout_count, notes)
+  VALUES (
+    auth.uid(),
+    'Legacy Import',
+    v_total,
+    'Generated for imported workouts that existed before import tracking.'
+  )
+  RETURNING id INTO v_import_batch_id;
+
+  EXECUTE
+    'UPDATE workout_sessions
+     SET import_batch_id = $1
+     WHERE user_id = auth.uid()
+       AND import_batch_id IS NULL
+       AND (' || v_condition || ')'
+    USING v_import_batch_id;
+
+  GET DIAGNOSTICS v_tagged = ROW_COUNT;
+
+  UPDATE workout_sets set_row
+  SET import_batch_id = v_import_batch_id
+  FROM workout_sessions session_row
+  WHERE set_row.session_id = session_row.id
+    AND session_row.user_id = auth.uid()
+    AND session_row.import_batch_id = v_import_batch_id
+    AND set_row.import_batch_id IS NULL;
+
+  UPDATE raw_workout_entries raw_row
+  SET import_batch_id = v_import_batch_id
+  FROM workout_sessions session_row
+  WHERE raw_row.session_id = session_row.id
+    AND raw_row.user_id = auth.uid()
+    AND session_row.import_batch_id = v_import_batch_id
+    AND raw_row.import_batch_id IS NULL;
+
+  RETURN QUERY SELECT v_import_batch_id, v_total, v_tagged, GREATEST(v_total_untagged - v_total, 0);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION reset_workout_history()
+RETURNS TABLE (
+  sessions_deleted INT,
+  sets_deleted INT,
+  imports_deleted INT,
+  summaries_deleted INT,
+  routines_deleted INT
+)
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+  v_session_ids TEXT[];
+  v_sessions_deleted INT := 0;
+  v_sets_deleted INT := 0;
+  v_imports_deleted INT := 0;
+  v_summaries_deleted INT := 0;
+  v_routines_deleted INT := 0;
+BEGIN
+  SELECT COALESCE(array_agg(id), ARRAY[]::TEXT[])
+    INTO v_session_ids
+  FROM workout_sessions
+  WHERE user_id = auth.uid();
+
+  SELECT COUNT(*)::INT
+    INTO v_sets_deleted
+  FROM workout_sets
+  WHERE session_id = ANY(v_session_ids);
+
+  SELECT COUNT(*)::INT
+    INTO v_imports_deleted
+  FROM import_batches
+  WHERE user_id = auth.uid();
+
+  SELECT COUNT(*)::INT
+    INTO v_summaries_deleted
+  FROM weekly_summaries
+  WHERE user_id = auth.uid();
+
+  SELECT COUNT(*)::INT
+    INTO v_routines_deleted
+  FROM generated_routines
+  WHERE user_id = auth.uid();
+
+  IF to_regclass('public.raw_workout_entries') IS NOT NULL THEN
+    EXECUTE 'DELETE FROM raw_workout_entries WHERE user_id = auth.uid()';
+  END IF;
+
+  IF to_regclass('public.workout_logs') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'workout_logs' AND column_name = 'session_id'
+    ) THEN
+      EXECUTE 'DELETE FROM workout_logs WHERE session_id = ANY($1)' USING v_session_ids;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'workout_logs' AND column_name = 'user_id'
+    ) THEN
+      EXECUTE 'DELETE FROM workout_logs WHERE user_id = auth.uid()';
+    END IF;
+  END IF;
+
+  IF to_regclass('public.workout_exercises') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'workout_exercises' AND column_name = 'session_id'
+    ) THEN
+      EXECUTE 'DELETE FROM workout_exercises WHERE session_id = ANY($1)' USING v_session_ids;
+    END IF;
+  END IF;
+
+  IF to_regclass('public.exercise_logs') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'exercise_logs' AND column_name = 'session_id'
+    ) THEN
+      EXECUTE 'DELETE FROM exercise_logs WHERE session_id = ANY($1)' USING v_session_ids;
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'exercise_logs' AND column_name = 'user_id'
+    ) THEN
+      EXECUTE 'DELETE FROM exercise_logs WHERE user_id = auth.uid()';
+    END IF;
+  END IF;
+
+  IF to_regclass('public.sets') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'sets' AND column_name = 'session_id'
+    ) THEN
+      EXECUTE 'DELETE FROM sets WHERE session_id = ANY($1)' USING v_session_ids;
+    END IF;
+  END IF;
+
+  DELETE FROM generated_routines
+  WHERE user_id = auth.uid();
+
+  DELETE FROM weekly_summaries
+  WHERE user_id = auth.uid();
+
+  IF to_regclass('public.import_jobs') IS NOT NULL THEN
+    EXECUTE 'DELETE FROM import_jobs WHERE user_id = auth.uid()';
+  END IF;
+
+  DELETE FROM workout_sessions
+  WHERE user_id = auth.uid();
+  GET DIAGNOSTICS v_sessions_deleted = ROW_COUNT;
+
+  DELETE FROM import_batches
+  WHERE user_id = auth.uid();
+
+  RETURN QUERY SELECT v_sessions_deleted, v_sets_deleted, v_imports_deleted, v_summaries_deleted, v_routines_deleted;
+END;
+$$;
 
 
 -- ---------------------------------------------------------------

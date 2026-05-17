@@ -10,6 +10,10 @@ import {
   Equipment,
   Exercise,
   CanonicalExercise,
+  ImportBatch,
+  LegacyImportPreview,
+  ExerciseLibraryCategory,
+  WorkoutTag,
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
 import { DEFAULT_CANONICAL_EXERCISES } from "@/lib/canonical-exercises";
@@ -59,6 +63,7 @@ function toCanonicalName(name: string) {
 }
 
 function mapExerciseStatus(notes?: string): Exercise["status"] {
+  if (notes?.includes("status:archived")) return "archived";
   return notes?.includes("status:unreviewed") ? "unreviewed" : "active";
 }
 
@@ -166,6 +171,326 @@ export async function updateSet(id: string, patch: Partial<WorkoutSet>): Promise
   const supabase = await createClient();
   const { error } = await supabase.from("workout_sets").update(patch).eq("id", id);
   if (error) logSupabaseError("updateSet failed", error);
+}
+
+// ---------------------------------------------------------------
+// Imports
+// ---------------------------------------------------------------
+export async function createImportBatch(
+  userId: string,
+  input: { source_file_name: string; workout_count: number; notes?: string; id?: string }
+): Promise<ImportBatch | null> {
+  const batch: ImportBatch = {
+    id: input.id ?? crypto.randomUUID(),
+    user_id: userId,
+    created_at: new Date().toISOString(),
+    source_file_name: input.source_file_name,
+    workout_count: input.workout_count,
+    notes: input.notes,
+  };
+
+  if (isDemo()) {
+    const { storeCreateImportBatch } = await import("@/lib/store");
+    return storeCreateImportBatch(batch);
+  }
+  if (!isValidUuid(userId)) {
+    console.error("[data] createImportBatch invalid userId", userId);
+    return null;
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("import_batches").insert(batch).select("*").single();
+  if (error || !data) {
+    logSupabaseError("createImportBatch failed", error);
+    return null;
+  }
+  return data;
+}
+
+export async function getImportBatches(userId: string): Promise<ImportBatch[]> {
+  if (isDemo()) {
+    const { storeImportBatches } = await import("@/lib/store");
+    return storeImportBatches(userId);
+  }
+  if (!isValidUuid(userId)) {
+    console.error("[data] getImportBatches invalid userId", userId);
+    return [];
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("list_import_batches");
+  if (error) {
+    logSupabaseError("getImportBatches failed", error);
+    return [];
+  }
+  return (data ?? []) as ImportBatch[];
+}
+
+export async function updateImportBatch(
+  userId: string,
+  importId: string,
+  patch: Pick<Partial<ImportBatch>, "source_file_name" | "notes" | "workout_count">
+): Promise<ImportBatch | null> {
+  if (isDemo()) {
+    const { storeUpdateImportBatch } = await import("@/lib/store");
+    return storeUpdateImportBatch(userId, importId, patch);
+  }
+  if (!isValidUuid(userId) || !isValidUuid(importId)) {
+    console.error("[data] updateImportBatch invalid ids", { userId, importId });
+    return null;
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("import_batches")
+    .update(patch)
+    .eq("id", importId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error || !data) {
+    logSupabaseError("updateImportBatch failed", error);
+    return null;
+  }
+  return data;
+}
+
+export async function undoImportBatch(
+  userId: string,
+  importId: string
+): Promise<{ success: boolean; sessions_deleted: number; sets_deleted: number; error?: string }> {
+  if (isDemo()) {
+    const { storeUndoImportBatch } = await import("@/lib/store");
+    return { success: true, ...storeUndoImportBatch(userId, importId) };
+  }
+  if (!isValidUuid(userId) || !isValidUuid(importId)) {
+    return { success: false, sessions_deleted: 0, sets_deleted: 0, error: "Invalid import id" };
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("undo_import_batch", { p_import_batch_id: importId });
+  if (error) {
+    logSupabaseError("undoImportBatch failed", error);
+    return { success: false, sessions_deleted: 0, sets_deleted: 0, error: error.message ?? "Undo failed" };
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  return {
+    success: true,
+    sessions_deleted: Number(result?.sessions_deleted ?? 0),
+    sets_deleted: Number(result?.sets_deleted ?? 0),
+  };
+}
+
+export async function undoAllImportBatches(
+  userId: string
+): Promise<{ success: boolean; batches_deleted: number; sessions_deleted: number; sets_deleted: number; error?: string }> {
+  if (isDemo()) {
+    const { storeUndoAllImportBatches } = await import("@/lib/store");
+    return { success: true, ...storeUndoAllImportBatches(userId) };
+  }
+  if (!isValidUuid(userId)) {
+    return { success: false, batches_deleted: 0, sessions_deleted: 0, sets_deleted: 0, error: "Invalid user id" };
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("delete_all_imported_history");
+  if (error) {
+    logSupabaseError("undoAllImportBatches failed", error);
+    return { success: false, batches_deleted: 0, sessions_deleted: 0, sets_deleted: 0, error: error.message ?? "Delete all failed" };
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  return {
+    success: true,
+    batches_deleted: Number(result?.batches_deleted ?? 0),
+    sessions_deleted: Number(result?.sessions_deleted ?? 0),
+    sets_deleted: Number(result?.sets_deleted ?? 0),
+  };
+}
+
+export async function resetWorkoutHistory(
+  userId: string
+): Promise<{ success: boolean; sessions_deleted: number; sets_deleted: number; imports_deleted: number; summaries_deleted: number; routines_deleted: number; error?: string }> {
+  if (isDemo()) {
+    const { storeResetWorkoutHistory } = await import("@/lib/store");
+    return { success: true, ...storeResetWorkoutHistory(userId) };
+  }
+  if (!isValidUuid(userId)) {
+    return { success: false, sessions_deleted: 0, sets_deleted: 0, imports_deleted: 0, summaries_deleted: 0, routines_deleted: 0, error: "Invalid user id" };
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("reset_workout_history");
+  if (error) {
+    logSupabaseError("resetWorkoutHistory failed", error);
+    return { success: false, sessions_deleted: 0, sets_deleted: 0, imports_deleted: 0, summaries_deleted: 0, routines_deleted: 0, error: error.message ?? "Reset failed" };
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  return {
+    success: true,
+    sessions_deleted: Number(result?.sessions_deleted ?? 0),
+    sets_deleted: Number(result?.sets_deleted ?? 0),
+    imports_deleted: Number(result?.imports_deleted ?? 0),
+    summaries_deleted: Number(result?.summaries_deleted ?? 0),
+    routines_deleted: Number(result?.routines_deleted ?? 0),
+  };
+}
+
+export async function getLegacyImportCandidateCount(userId: string): Promise<number> {
+  return (await getLegacyImportPreview(userId)).found;
+}
+
+export async function getLegacyImportPreview(userId: string): Promise<LegacyImportPreview> {
+  if (isDemo()) {
+    const { storeLegacyImportPreview } = await import("@/lib/store");
+    const preview = storeLegacyImportPreview(userId);
+    console.log("[imports] legacy import dry run", preview);
+    return preview;
+  }
+  if (!isValidUuid(userId)) return { found: 0, skipped: 0, candidates: [] };
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("preview_legacy_import_candidates");
+  if (error) {
+    logSupabaseError("getLegacyImportPreview failed", error);
+    return { found: 0, skipped: 0, candidates: [] };
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  const preview = {
+    found: Number(result?.found ?? 0),
+    skipped: Number(result?.skipped ?? 0),
+    candidates: Array.isArray(result?.candidates) ? result.candidates : [],
+  };
+  console.log("[imports] legacy import dry run", preview);
+  return preview;
+}
+
+export async function assignLegacyImportBatch(
+  userId: string
+): Promise<{ success: boolean; import_batch_id?: string; workout_count: number; found?: number; tagged?: number; skipped?: number; error?: string }> {
+  if (isDemo()) {
+    const { storeAssignLegacyImport, storeLegacyImportPreview } = await import("@/lib/store");
+    const preview = storeLegacyImportPreview(userId);
+    const total = preview.found;
+    console.log("[imports] legacy import backfill starting", {
+      found: preview.found,
+      skipped: preview.skipped,
+    });
+    if (total === 0) return { success: true, workout_count: 0, found: 0, tagged: 0, skipped: preview.skipped };
+    const batch = storeAssignLegacyImport(userId, {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      created_at: new Date().toISOString(),
+      source_file_name: "Legacy Import",
+      workout_count: total,
+      notes: "Generated for imported workouts that existed before import tracking.",
+    });
+    console.log("[imports] legacy import backfill complete", {
+      found: preview.found,
+      tagged: batch.workout_count,
+      skipped: preview.skipped,
+    });
+    return {
+      success: true,
+      import_batch_id: batch.id,
+      workout_count: batch.workout_count,
+      found: preview.found,
+      tagged: batch.workout_count,
+      skipped: preview.skipped,
+    };
+  }
+  if (!isValidUuid(userId)) {
+    return { success: false, workout_count: 0, found: 0, tagged: 0, skipped: 0, error: "Invalid user id" };
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("assign_legacy_import_batch");
+  if (error) {
+    logSupabaseError("assignLegacyImportBatch failed", error);
+    return { success: false, workout_count: 0, error: error.message ?? "Legacy assignment failed" };
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  console.log("[imports] legacy import backfill complete", {
+    found: Number(result?.found ?? result?.workout_count ?? 0),
+    tagged: Number(result?.tagged ?? result?.workout_count ?? 0),
+    skipped: Number(result?.skipped ?? 0),
+  });
+  return {
+    success: true,
+    import_batch_id: result?.import_batch_id,
+    workout_count: Number(result?.tagged ?? result?.workout_count ?? 0),
+    found: Number(result?.found ?? result?.workout_count ?? 0),
+    tagged: Number(result?.tagged ?? result?.workout_count ?? 0),
+    skipped: Number(result?.skipped ?? 0),
+  };
+}
+
+export async function deleteLegacyImportedHistory(
+  userId: string
+): Promise<{ success: boolean; import_batch_id?: string; sessions_deleted: number; sets_deleted: number; found: number; tagged: number; skipped: number; error?: string }> {
+  const assigned = await assignLegacyImportBatch(userId);
+  if (!assigned.success) {
+    return {
+      success: false,
+      sessions_deleted: 0,
+      sets_deleted: 0,
+      found: 0,
+      tagged: 0,
+      skipped: 0,
+      error: assigned.error ?? "Legacy assignment failed",
+    };
+  }
+
+  if (!assigned.import_batch_id || assigned.workout_count === 0) {
+    const preview = await getLegacyImportPreview(userId);
+    return {
+      success: true,
+      sessions_deleted: 0,
+      sets_deleted: 0,
+      found: preview.found,
+      tagged: 0,
+      skipped: preview.skipped,
+    };
+  }
+
+  const deleted = await undoImportBatch(userId, assigned.import_batch_id);
+  if (!deleted.success) {
+    return {
+      success: false,
+      import_batch_id: assigned.import_batch_id,
+      sessions_deleted: 0,
+      sets_deleted: 0,
+      found: assigned.found ?? assigned.workout_count,
+      tagged: assigned.tagged ?? assigned.workout_count,
+      skipped: assigned.skipped ?? 0,
+      error: deleted.error ?? "Legacy delete failed",
+    };
+  }
+
+  console.log("[imports] legacy import delete complete", {
+    found: assigned.workout_count,
+    tagged: assigned.workout_count,
+    skipped: 0,
+    sessions_deleted: deleted.sessions_deleted,
+    sets_deleted: deleted.sets_deleted,
+  });
+
+  return {
+    success: true,
+    import_batch_id: assigned.import_batch_id,
+    sessions_deleted: deleted.sessions_deleted,
+    sets_deleted: deleted.sets_deleted,
+    found: assigned.found ?? assigned.workout_count,
+    tagged: assigned.tagged ?? assigned.workout_count,
+    skipped: assigned.skipped ?? 0,
+  };
 }
 
 // ---------------------------------------------------------------
@@ -402,7 +727,138 @@ export async function getExercises(): Promise<Exercise[]> {
   return (data ?? MOCK_EXERCISES).map((exercise) => ({
     ...exercise,
     status: mapExerciseStatus(exercise.notes),
+    library_category: exercise.library_category ?? "Strength",
   }));
+}
+
+function tagsForLibraryCategory(category: ExerciseLibraryCategory): WorkoutTag[] {
+  switch (category) {
+    case "Calisthenics":
+      return ["home", "compound"];
+    case "Home Workout":
+      return ["home", "compound"];
+    case "Running/Cardio":
+      return ["core"];
+    case "Warmup":
+      return ["compound"];
+    case "Recovery":
+      return ["core"];
+    case "Strength":
+    default:
+      return ["compound"];
+  }
+}
+
+function normalizeAliases(value: string[] | string | undefined): string[] {
+  const aliases = Array.isArray(value) ? value : (value ?? "").split(",");
+  return Array.from(new Set(aliases.map((alias) => alias.trim()).filter(Boolean)));
+}
+
+function buildExerciseNotes(status: Exercise["status"], notes?: string) {
+  const pieces = (notes ?? "")
+    .split(";")
+    .map((piece) => piece.trim())
+    .filter((piece) => piece && !piece.startsWith("status:"));
+  return [`status:${status ?? "active"}`, ...pieces].join(";");
+}
+
+export async function saveExerciseDefinition(input: {
+  id?: string;
+  name: string;
+  aliases?: string[] | string;
+  tags?: WorkoutTag[];
+  library_category?: ExerciseLibraryCategory;
+  phase_order?: number;
+  notes?: string;
+}): Promise<{ success: boolean; exercise?: Exercise; duplicate?: Exercise; error?: string }> {
+  const name = input.name.trim();
+  const canonicalName = toCanonicalName(name);
+  if (!name || !canonicalName) return { success: false, error: "Exercise name is required." };
+
+  const libraryCategory = input.library_category ?? "Strength";
+  const aliases = normalizeAliases(input.aliases);
+  const tags = input.tags?.length ? input.tags : tagsForLibraryCategory(libraryCategory);
+
+  if (isDemo()) {
+    const { storeUpsertExercise } = await import("@/lib/store");
+    const result = storeUpsertExercise({
+      id: input.id,
+      name,
+      aliases,
+      tags,
+      library_category: libraryCategory,
+      phase_order: input.phase_order,
+      notes: buildExerciseNotes("active", input.notes),
+    });
+    if (result.duplicate) return { success: false, duplicate: result.duplicate, error: "An exercise with that name already exists." };
+    return { success: true, exercise: result.exercise };
+  }
+
+  const existingExercises = await getExercises();
+  const lower = name.toLowerCase();
+  const duplicate = existingExercises.find(
+    (exercise) =>
+      exercise.id !== input.id &&
+      (exercise.name.toLowerCase() === lower ||
+        exercise.canonical_name === canonicalName ||
+        exercise.aliases.some((alias) => alias.toLowerCase() === lower))
+  );
+  if (duplicate) {
+    return { success: false, duplicate, error: "An exercise with that name already exists." };
+  }
+
+  const payload = {
+    id: input.id ?? crypto.randomUUID(),
+    name,
+    canonical_name: canonicalName,
+    aliases,
+    tags,
+    library_category: libraryCategory,
+    phase_order: input.phase_order ?? 0,
+    archived_at: null,
+    notes: buildExerciseNotes("active", input.notes),
+    created_at: new Date().toISOString(),
+  };
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const query = input.id
+    ? supabase.from("exercise_definitions").update(payload).eq("id", input.id).select("*").single()
+    : supabase.from("exercise_definitions").insert(payload).select("*").single();
+  const { data, error } = await query;
+  if (error || !data) {
+    logSupabaseError("saveExerciseDefinition failed", error);
+    return { success: false, error: error?.message ?? "Exercise save failed." };
+  }
+  return { success: true, exercise: { ...data, status: mapExerciseStatus(data.notes), library_category: data.library_category ?? "Strength" } };
+}
+
+export async function archiveExerciseDefinition(id: string): Promise<{ success: boolean; exercise?: Exercise; error?: string }> {
+  if (isDemo()) {
+    const { storeArchiveExercise } = await import("@/lib/store");
+    const exercise = storeArchiveExercise(id);
+    return exercise ? { success: true, exercise } : { success: false, error: "Exercise not found." };
+  }
+
+  const existing = (await getExercises()).find((exercise) => exercise.id === id);
+  if (!existing) return { success: false, error: "Exercise not found." };
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("exercise_definitions")
+    .update({
+      archived_at: new Date().toISOString(),
+      notes: buildExerciseNotes("archived", existing.notes),
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error || !data) {
+    logSupabaseError("archiveExerciseDefinition failed", error);
+    return { success: false, error: error?.message ?? "Archive failed." };
+  }
+  return { success: true, exercise: { ...data, status: "archived", library_category: data.library_category ?? "Strength" } };
 }
 
 export async function getCanonicalExercises(): Promise<CanonicalExercise[]> {

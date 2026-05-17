@@ -39,8 +39,15 @@ export type EquipmentCategory =
 export type PhaseType = "accumulation" | "intensification" | "density";
 
 export type WorkoutSource = "import_text" | "import_docx" | "import_xlsx" | "manual" | "generated";
-export type ExerciseStatus = "active" | "unreviewed";
+export type ExerciseStatus = "active" | "unreviewed" | "archived";
 export type ExerciseCategory = "push" | "pull" | "legs" | "upper" | "lower" | "core" | "other";
+export type ExerciseLibraryCategory =
+  | "Strength"
+  | "Calisthenics"
+  | "Home Workout"
+  | "Running/Cardio"
+  | "Warmup"
+  | "Recovery";
 
 // ---------------------------------------------------------------
 // Equipment
@@ -64,6 +71,9 @@ export interface Exercise {
   canonical_name: string;
   aliases: string[];
   status?: ExerciseStatus;
+  library_category?: ExerciseLibraryCategory;
+  phase_order?: number;
+  archived_at?: string;
   equipment_id?: string;
   equipment?: Equipment;
   muscle_groups: MuscleGroup[];
@@ -116,6 +126,7 @@ export interface WorkoutSession {
   raw_text?: string;
   duration_minutes?: number;
   phase_id?: string;
+  import_batch_id?: string;
   source_id?: string;
   import_batch?: string;
   imported_at?: string;
@@ -139,6 +150,7 @@ export interface WorkoutSet {
   notes?: string;
   is_warmup: boolean;
   rpe?: number; // Rate of Perceived Exertion 1–10
+  import_batch_id?: string;
   source_id?: string;
   import_batch?: string;
   imported_at?: string;
@@ -218,6 +230,31 @@ export interface ImportLog {
   status: "pending" | "processing" | "success" | "error";
   errors?: Array<{ line?: number; message: string }>;
   created_at: string;
+}
+
+export interface ImportBatch {
+  id: string;
+  user_id: string;
+  created_at: string;
+  source_file_name: string;
+  workout_count: number;
+  notes?: string;
+  session_count?: number;
+  set_count?: number;
+}
+
+export interface LegacyImportCandidate {
+  id: string;
+  date: string;
+  source?: string;
+  notes?: string;
+  reason: string;
+}
+
+export interface LegacyImportPreview {
+  found: number;
+  skipped: number;
+  candidates: LegacyImportCandidate[];
 }
 
 // ---------------------------------------------------------------

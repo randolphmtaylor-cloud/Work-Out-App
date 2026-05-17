@@ -1,5 +1,12 @@
 import workoutHistory from "@/data/workout-history.json";
-import { createUnreviewedExercise, getActivePhase, getExercises, insertSessionWithSetsIfNew } from "@/lib/data";
+import {
+  createImportBatch,
+  createUnreviewedExercise,
+  getActivePhase,
+  getExercises,
+  insertSessionWithSetsIfNew,
+  updateImportBatch,
+} from "@/lib/data";
 import { normalizeExerciseName } from "@/lib/parsers/normalize";
 import type { Exercise, WorkoutSession, WorkoutSet } from "@/types";
 
@@ -36,6 +43,7 @@ interface BundledWorkoutHistory {
 }
 
 export interface WorkoutHistoryImportResult {
+  import_batch_id?: string;
   imported_sessions: number;
   skipped_duplicates: number;
   imported_sets: number;
@@ -77,6 +85,20 @@ export async function importBundledWorkoutHistory(userId: string): Promise<Worko
   const exerciseMap = buildExerciseMap(exercises);
   const phase = await getActivePhase(userId);
   const importedAt = new Date().toISOString();
+  const importBatch = await createImportBatch(userId, {
+    source_file_name: history.source_filename,
+    workout_count: history.workouts.length,
+    notes: `Bundled history import: ${history.title}`,
+  });
+  if (!importBatch) {
+    return {
+      imported_sessions: 0,
+      skipped_duplicates: 0,
+      imported_sets: 0,
+      unreviewed_created: [],
+      errors: ["Could not create import tracking record"],
+    };
+  }
   const createdUnreviewed = new Set<string>();
   const errors: string[] = [];
   let importedSessions = 0;
@@ -127,6 +149,7 @@ export async function importBundledWorkoutHistory(userId: string): Promise<Worko
           bodyweight_lbs: set.bodyweight_lbs,
           is_warmup: set.is_warmup,
           notes: set.bodyweight_lbs !== undefined ? "bodyweight" : undefined,
+          import_batch_id: importBatch.id,
           source_id: `${workout.source_id}:set:${String(sessionSetIndex).padStart(3, "0")}`,
           import_batch: history.document_id,
           imported_at: importedAt,
@@ -143,6 +166,7 @@ export async function importBundledWorkoutHistory(userId: string): Promise<Worko
       raw_text: rawWorkoutText(workout),
       notes: `Imported from ${history.source_filename}: ${workout.title}`,
       phase_id: phase?.id,
+      import_batch_id: importBatch.id,
       source_id: workout.source_id,
       import_batch: history.document_id,
       imported_at: importedAt,
@@ -163,7 +187,10 @@ export async function importBundledWorkoutHistory(userId: string): Promise<Worko
     importedSets += result.setsInserted;
   }
 
+  await updateImportBatch(userId, importBatch.id, { workout_count: importedSessions });
+
   return {
+    import_batch_id: importBatch.id,
     imported_sessions: importedSessions,
     skipped_duplicates: skippedDuplicates,
     imported_sets: importedSets,

@@ -8,6 +8,7 @@ import {
   Upload,
   BarChart2,
   MessageSquare,
+  Settings,
   Zap,
   UserRound,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/import",     label: "Import",           icon: Upload },
   { href: "/progress",   label: "Progress",         icon: BarChart2 },
   { href: "/coach",      label: "AI Coach",         icon: MessageSquare },
+  { href: "/settings",   label: "Settings",        icon: Settings },
 ];
 
 export function Sidebar({ initialAuthStatus }: { initialAuthStatus?: ServerAuthStatus }) {

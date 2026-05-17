@@ -15,6 +15,10 @@ import {
   Exercise,
   CanonicalExercise,
   ExerciseCanonicalMapping,
+  ImportBatch,
+  LegacyImportPreview,
+  ExerciseLibraryCategory,
+  WorkoutTag,
 } from "@/types";
 import {
   MOCK_SESSIONS,
@@ -36,6 +40,7 @@ const store = {
   exercises: [...MOCK_EXERCISES] as Exercise[],
   canonicalExercises: [...DEFAULT_CANONICAL_EXERCISES] as CanonicalExercise[],
   canonicalMappings: [] as ExerciseCanonicalMapping[],
+  imports: [] as ImportBatch[],
 };
 
 // ---- Sessions ----
@@ -80,6 +85,156 @@ export function storeInsertSets(sets: WorkoutSet[]): void {
 export function storeUpdateSet(id: string, patch: Partial<WorkoutSet>): void {
   const idx = store.sets.findIndex((s) => s.id === id);
   if (idx !== -1) store.sets[idx] = { ...store.sets[idx], ...patch };
+}
+
+// ---- Imports ----
+export function storeCreateImportBatch(batch: ImportBatch): ImportBatch {
+  store.imports = store.imports.filter((item) => item.id !== batch.id);
+  store.imports.push(batch);
+  return batch;
+}
+
+export function storeImportBatches(userId: string): ImportBatch[] {
+  return store.imports
+    .filter((item) => item.user_id === userId)
+    .map((item) => {
+      const sessions = store.sessions.filter((session) => session.import_batch_id === item.id);
+      const sessionIds = new Set(sessions.map((session) => session.id));
+      return {
+        ...item,
+        session_count: sessions.length,
+        set_count: store.sets.filter((set) => sessionIds.has(set.session_id)).length,
+      };
+    })
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function storeUpdateImportBatch(
+  userId: string,
+  importId: string,
+  patch: Pick<Partial<ImportBatch>, "source_file_name" | "notes" | "workout_count">
+): ImportBatch | null {
+  const idx = store.imports.findIndex((item) => item.user_id === userId && item.id === importId);
+  if (idx === -1) return null;
+  store.imports[idx] = { ...store.imports[idx], ...patch };
+  return store.imports[idx];
+}
+
+export function storeUndoAllImportBatches(userId: string): {
+  batches_deleted: number;
+  sessions_deleted: number;
+  sets_deleted: number;
+} {
+  const batchIds = new Set(store.imports.filter((item) => item.user_id === userId).map((item) => item.id));
+  const sessionIds = new Set(
+    store.sessions
+      .filter((session) => session.user_id === userId && session.import_batch_id && batchIds.has(session.import_batch_id))
+      .map((session) => session.id)
+  );
+  const setsDeleted = store.sets.filter((set) => sessionIds.has(set.session_id)).length;
+  store.sets = store.sets.filter((set) => !sessionIds.has(set.session_id));
+  store.sessions = store.sessions.filter((session) => !sessionIds.has(session.id));
+  store.imports = store.imports.filter((item) => item.user_id !== userId);
+  return {
+    batches_deleted: batchIds.size,
+    sessions_deleted: sessionIds.size,
+    sets_deleted: setsDeleted,
+  };
+}
+
+export function storeUndoImportBatch(userId: string, importId: string): { sessions_deleted: number; sets_deleted: number } {
+  const sessionIds = new Set(
+    store.sessions
+      .filter((session) => session.user_id === userId && session.import_batch_id === importId)
+      .map((session) => session.id)
+  );
+  const setsDeleted = store.sets.filter((set) => sessionIds.has(set.session_id)).length;
+  store.sets = store.sets.filter((set) => !sessionIds.has(set.session_id));
+  store.sessions = store.sessions.filter((session) => !sessionIds.has(session.id));
+  store.imports = store.imports.filter((item) => !(item.user_id === userId && item.id === importId));
+  return { sessions_deleted: sessionIds.size, sets_deleted: setsDeleted };
+}
+
+export function storeResetWorkoutHistory(userId: string): {
+  sessions_deleted: number;
+  sets_deleted: number;
+  imports_deleted: number;
+  summaries_deleted: number;
+  routines_deleted: number;
+} {
+  const sessionIds = new Set(store.sessions.filter((session) => session.user_id === userId).map((session) => session.id));
+  const setsDeleted = store.sets.filter((set) => sessionIds.has(set.session_id)).length;
+  const summariesDeleted = store.summaries.filter((summary) => summary.user_id === userId).length;
+  const routinesDeleted = store.routines.filter((routine) => routine.user_id === userId).length;
+  const importsDeleted = store.imports.filter((item) => item.user_id === userId).length;
+
+  store.sets = store.sets.filter((set) => !sessionIds.has(set.session_id));
+  store.sessions = store.sessions.filter((session) => session.user_id !== userId);
+  store.summaries = store.summaries.filter((summary) => summary.user_id !== userId);
+  store.routines = store.routines.filter((routine) => routine.user_id !== userId);
+  store.imports = store.imports.filter((item) => item.user_id !== userId);
+
+  return {
+    sessions_deleted: sessionIds.size,
+    sets_deleted: setsDeleted,
+    imports_deleted: importsDeleted,
+    summaries_deleted: summariesDeleted,
+    routines_deleted: routinesDeleted,
+  };
+}
+
+function legacyImportReason(session: WorkoutSession): string | null {
+  const reasons = [
+    session.source.startsWith("import_") ? `source=${session.source}` : null,
+    session.imported_at ? "imported_at" : null,
+    session.import_batch ? "import_batch" : null,
+    session.source_id ? "source_id" : null,
+    session.notes?.toLowerCase().includes("import") ? "notes mention import" : null,
+    session.raw_text?.toLowerCase().includes("import") ? "raw_text mention import" : null,
+  ].filter((reason): reason is string => Boolean(reason));
+  return reasons.length > 0 ? reasons.join(", ") : null;
+}
+
+export function storeLegacyImportPreview(userId: string): LegacyImportPreview {
+  const untaggedSessions = store.sessions.filter(
+    (session) => session.user_id === userId && !session.import_batch_id
+  );
+  const candidates = untaggedSessions
+    .map((session) => ({ session, reason: legacyImportReason(session) }))
+    .filter((item): item is { session: WorkoutSession; reason: string } => Boolean(item.reason));
+
+  return {
+    found: candidates.length,
+    skipped: untaggedSessions.length - candidates.length,
+    candidates: candidates.slice(0, 25).map(({ session, reason }) => ({
+      id: session.id,
+      date: session.date,
+      source: session.source,
+      notes: session.notes,
+      reason,
+    })),
+  };
+}
+
+export function storeLegacyImportCandidateCount(userId: string): number {
+  return storeLegacyImportPreview(userId).found;
+}
+
+export function storeAssignLegacyImport(userId: string, batch: ImportBatch): ImportBatch {
+  const legacySessionIds = new Set<string>();
+  store.sessions = store.sessions.map((session) => {
+    const isLegacy =
+      session.user_id === userId &&
+      !session.import_batch_id &&
+      Boolean(legacyImportReason(session));
+    if (!isLegacy) return session;
+    legacySessionIds.add(session.id);
+    return { ...session, import_batch_id: batch.id };
+  });
+  store.sets = store.sets.map((set) =>
+    legacySessionIds.has(set.session_id) && !set.import_batch_id ? { ...set, import_batch_id: batch.id } : set
+  );
+  return storeCreateImportBatch({ ...batch, workout_count: legacySessionIds.size });
 }
 
 // ---- Phases ----
@@ -146,6 +301,76 @@ export function storeExercises(): Exercise[] {
   return [...store.exercises];
 }
 
+export function storeUpsertExercise(input: {
+  id?: string;
+  name: string;
+  aliases: string[];
+  tags: WorkoutTag[];
+  library_category: ExerciseLibraryCategory;
+  phase_order?: number;
+  notes?: string;
+}): { exercise: Exercise; created: boolean; duplicate?: Exercise } {
+  const canonical = toCanonicalName(input.name);
+  const lower = input.name.trim().toLowerCase();
+  const duplicate = store.exercises.find(
+    (exercise) =>
+      exercise.id !== input.id &&
+      (exercise.name.toLowerCase() === lower ||
+        exercise.canonical_name === canonical ||
+        exercise.aliases.some((alias) => alias.toLowerCase() === lower))
+  );
+  if (duplicate) {
+    return { exercise: duplicate, created: false, duplicate };
+  }
+
+  const now = new Date().toISOString();
+  if (input.id) {
+    const idx = store.exercises.findIndex((exercise) => exercise.id === input.id);
+    if (idx !== -1) {
+      store.exercises[idx] = {
+        ...store.exercises[idx],
+        name: input.name,
+        canonical_name: canonical,
+        aliases: input.aliases,
+        tags: input.tags,
+        library_category: input.library_category,
+        phase_order: input.phase_order,
+        notes: input.notes,
+        status: input.notes?.includes("status:archived") ? "archived" : "active",
+      };
+      return { exercise: store.exercises[idx], created: false };
+    }
+  }
+
+  const created: Exercise = {
+    id: crypto.randomUUID(),
+    name: input.name,
+    canonical_name: canonical,
+    aliases: input.aliases,
+    muscle_groups: [],
+    tags: input.tags,
+    library_category: input.library_category,
+    phase_order: input.phase_order,
+    notes: input.notes ?? "status:active",
+    status: "active",
+    created_at: now,
+  };
+  store.exercises.push(created);
+  return { exercise: created, created: true };
+}
+
+export function storeArchiveExercise(id: string): Exercise | null {
+  const idx = store.exercises.findIndex((exercise) => exercise.id === id);
+  if (idx === -1) return null;
+  store.exercises[idx] = {
+    ...store.exercises[idx],
+    status: "archived",
+    archived_at: new Date().toISOString(),
+    notes: mergeStatusNote(store.exercises[idx].notes, "archived"),
+  };
+  return store.exercises[idx];
+}
+
 export function storeFindExerciseByCanonical(canonicalName: string): Exercise | null {
   return store.exercises.find((e) => e.canonical_name === canonicalName) ?? null;
 }
@@ -202,6 +427,14 @@ export function storeCanonicalMappings(): ExerciseCanonicalMapping[] {
 
 function toCanonicalName(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function mergeStatusNote(notes: string | undefined, status: Exercise["status"]) {
+  const pieces = (notes ?? "")
+    .split(";")
+    .map((piece) => piece.trim())
+    .filter((piece) => piece && !piece.startsWith("status:"));
+  return [`status:${status}`, ...pieces].join(";");
 }
 
 function ensureExerciseForCanonical(canonical: CanonicalExercise): Exercise {
