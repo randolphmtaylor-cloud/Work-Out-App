@@ -23,14 +23,16 @@ const LogSchema = z.object({
   routine_id: z.string().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   duration_minutes: z.number().int().positive().max(240),
-  workout_type: z.enum(["gym", "home"]).default("gym"),
+  workout_type: z.enum(["gym", "home", "push", "pull", "legs", "upper", "lower", "full_body", "core"]).default("gym"),
   sets: z.array(SetSchema).min(1),
   notes: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
+  console.log("[workouts/log] request received");
   const { userId, error: userError } = await getCurrentUserId({ requireAuth: true });
   if (!userId) {
+    console.error("[workouts/log] auth failed", userError);
     return NextResponse.json({ error: userError ?? "Sign in is required before logging workouts." }, { status: 401 });
   }
 
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
   try {
     body = LogSchema.parse(await req.json());
   } catch (e) {
+    console.error("[workouts/log] invalid request", e);
     return NextResponse.json({ error: "Invalid request", details: e }, { status: 400 });
   }
 
@@ -54,6 +57,7 @@ export async function POST(req: NextRequest) {
     user_id: userId,
     date: body.date,
     notes: sessionNotes || undefined,
+    workout_type: body.workout_type,
     source: "manual",
     duration_minutes: body.duration_minutes,
     phase_id: phase?.id,
@@ -86,11 +90,33 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  await insertSessionWithSets(session, sets);
+  try {
+    await insertSessionWithSets(session, sets);
 
-  if (body.routine_id) {
-    await markRoutineComplete(body.routine_id, sessionId);
+    if (body.routine_id) {
+      await markRoutineComplete(body.routine_id, sessionId);
+    }
+  } catch (error) {
+    console.error("[workouts/log] save failed", {
+      sessionId,
+      userId,
+      date: body.date,
+      workoutType: body.workout_type,
+      setCount: sets.length,
+      error,
+    });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Workout save failed. Your entries were not cleared." },
+      { status: 500 }
+    );
   }
 
+  console.log("[workouts/log] save succeeded", {
+    sessionId,
+    userId,
+    date: body.date,
+    workoutType: body.workout_type,
+    setCount: sets.length,
+  });
   return NextResponse.json({ success: true, session_id: sessionId, sets_logged: sets.length });
 }

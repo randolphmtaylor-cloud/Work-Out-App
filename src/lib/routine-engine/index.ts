@@ -272,7 +272,7 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
       reps_high: cfg.reps_high,
       rest_seconds: isCompound ? cfg.compound_rest : cfg.isolation_rest,
       notes: note,
-      substitutions: getSubstitutions(ex),
+      substitutions: getSubstitutions(ex, library, equipmentLibrary),
     });
 
     minutesUsed += mins;
@@ -296,7 +296,7 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
       reps_low: 8,
       reps_high: 12,
       rest_seconds: 45,
-      substitutions: getSimilarWorkouts(coreChoice, 2),
+      substitutions: getSimilarWorkouts(coreChoice, 2, library, equipmentLibrary),
     });
     minutesUsed += exerciseMinutes(coreChoice, 3);
   }
@@ -321,8 +321,12 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   };
 }
 
-function getSubstitutions(ex: Exercise) {
-  return getSimilarWorkouts(ex);
+function getSubstitutions(
+  ex: Exercise,
+  library: Exercise[],
+  equipment: Array<{ id: string; name: string }>
+) {
+  return getSimilarWorkouts(ex, 3, library, equipment);
 }
 
 // ---------------------------------------------------------------

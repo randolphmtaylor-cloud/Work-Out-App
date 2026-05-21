@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
   user_id          UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   date             DATE        NOT NULL,
   notes            TEXT,
+  workout_type     TEXT,
   source           workout_source NOT NULL DEFAULT 'manual',
   raw_text         TEXT,
   duration_minutes INT,

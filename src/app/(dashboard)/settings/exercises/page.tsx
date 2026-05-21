@@ -2,10 +2,15 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ExerciseLibraryManager } from "@/components/settings/exercise-library-manager";
 import { Button } from "@/components/ui/button";
-import { getExercises } from "@/lib/data";
+import { getEquipment, getExercises } from "@/lib/data";
 
-export default async function ExerciseSettingsPage() {
-  const exercises = await getExercises();
+export default async function ExerciseSettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ edit?: string }>;
+}) {
+  const [exercises, equipment] = await Promise.all([getExercises(), getEquipment()]);
+  const editId = (await searchParams)?.edit;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -21,7 +26,7 @@ export default async function ExerciseSettingsPage() {
           Add, edit, archive, categorize, and reorder exercises used by new routines and Today&apos;s Workout.
         </p>
       </div>
-      <ExerciseLibraryManager initialExercises={exercises} />
+      <ExerciseLibraryManager initialExercises={exercises} equipment={equipment} initialEditId={editId} />
     </div>
   );
 }

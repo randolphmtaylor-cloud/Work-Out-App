@@ -14,8 +14,8 @@ const DIRECT_REPLACEMENTS: Record<string, string[]> = {
   "ab-wheel-rollout": ["back-extension"],
 };
 
-function equipmentName(exercise: Exercise): string | undefined {
-  return MOCK_EQUIPMENT.find((equipment) => equipment.id === exercise.equipment_id)?.name;
+function equipmentName(exercise: Exercise, equipment: Array<{ id: string; name: string }> = MOCK_EQUIPMENT): string | undefined {
+  return exercise.equipment?.name ?? equipment.find((item) => item.id === exercise.equipment_id)?.name;
 }
 
 function overlapCount(a: readonly string[], b: readonly string[]): number {
@@ -42,14 +42,20 @@ export function getWorkoutRepository(): Exercise[] {
   return [...MOCK_EXERCISES];
 }
 
-export function getSimilarWorkouts(exercise: Exercise, limit = 3): ExerciseSubstitution[] {
+export function getSimilarWorkouts(
+  exercise: Exercise,
+  limit = 3,
+  library: Exercise[] = MOCK_EXERCISES,
+  equipment: Array<{ id: string; name: string }> = MOCK_EQUIPMENT
+): ExerciseSubstitution[] {
+  const activeLibrary = library.filter((candidate) => candidate.status !== "archived");
   const direct = DIRECT_REPLACEMENTS[exercise.canonical_name] ?? [];
 
   const directMatches = direct
-    .map((canonicalName) => MOCK_EXERCISES.find((candidate) => candidate.canonical_name === canonicalName))
+    .map((canonicalName) => activeLibrary.find((candidate) => candidate.canonical_name === canonicalName))
     .filter((candidate): candidate is Exercise => Boolean(candidate));
 
-  const scored = MOCK_EXERCISES
+  const scored = activeLibrary
     .filter((candidate) => candidate.id !== exercise.id)
     .map((candidate) => {
       let score = 0;
@@ -70,7 +76,7 @@ export function getSimilarWorkouts(exercise: Exercise, limit = 3): ExerciseSubst
   return unique.slice(0, limit).map((replacement) => ({
     exercise_id: replacement.id,
     exercise_name: replacement.name,
-    equipment_name: equipmentName(replacement),
+    equipment_name: equipmentName(replacement, equipment),
     reason: formatReason(exercise, replacement),
   }));
 }

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import { CheckCircle, Circle, Loader2, ChevronDown, ChevronUp, Replace } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,9 @@ export function SessionLogger({ routine }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const sessionDateRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
   const [expandedEx, setExpandedEx] = useState<string | null>(routine.exercises[0]?.exercise_id ?? null);
   const [startTime] = useState(() => Date.now());
 
@@ -103,8 +106,11 @@ export function SessionLogger({ routine }: Props) {
   );
 
   const handleFinish = async () => {
+    if (saving) return;
+    setError(null);
     setSaving(true);
     const elapsedMin = Math.round((Date.now() - startTime) / 60000);
+    const selectedDate = sessionDateRef.current?.value || sessionDate;
 
     const completedSets = loggedSets
       .filter((s) => s.completed)
@@ -117,26 +123,40 @@ export function SessionLogger({ routine }: Props) {
       }));
 
     if (completedSets.length === 0) {
+      setError("Complete at least one set before logging this workout.");
       setSaving(false);
       return;
     }
 
     try {
-      await fetch("/api/workouts/log", {
+      console.log("[session-logger] saving generated workout", {
+        routineId: routine.id,
+        date: selectedDate,
+        workoutType: routine.workout_type,
+        sets: completedSets.length,
+      });
+      const response = await fetch("/api/workouts/log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           routine_id: routine.id,
-          date: new Date().toISOString().split("T")[0],
+          date: selectedDate,
           duration_minutes: Math.max(elapsedMin, 1),
+          workout_type: routine.workout_type,
           sets: completedSets,
           notes: `${routine.workout_type} day`,
         }),
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to save session.");
+      }
       setSaved(true);
-      setTimeout(() => router.refresh(), 800);
-    } catch {
-      alert("Failed to save session. Please try again.");
+      setTimeout(() => router.push("/history"), 900);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save session. Please try again.";
+      console.error("[session-logger] save failed", err);
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -157,6 +177,17 @@ export function SessionLogger({ routine }: Props) {
   return (
     <div className="space-y-3">
       {/* Progress bar */}
+      <label className="block space-y-1 rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Workout date</span>
+        <input
+          type="date"
+          value={sessionDate}
+          ref={sessionDateRef}
+          onChange={(event) => setSessionDate(event.target.value)}
+          onInput={(event) => setSessionDate(event.currentTarget.value)}
+          className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-indigo-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+        />
+      </label>
       <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
         <span>{completedCount}/{totalCount} sets done</span>
         <span>{Math.round((completedCount / totalCount) * 100)}%</span>
@@ -293,6 +324,7 @@ export function SessionLogger({ routine }: Props) {
               {completedCount === totalCount ? "All sets done — great work!" : `${totalCount - completedCount} sets remaining`}
             </p>
             <p className="text-xs text-zinc-400 dark:text-zinc-500">Tap a set to mark it complete, or enter reps/weight first</p>
+            {error && <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{error}</p>}
           </div>
           <Button
             variant="accent"

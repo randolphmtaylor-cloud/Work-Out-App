@@ -13,6 +13,7 @@ import {
   ImportBatch,
   LegacyImportPreview,
   ExerciseLibraryCategory,
+  MuscleGroup,
   WorkoutTag,
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
@@ -62,7 +63,8 @@ function toCanonicalName(name: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-function mapExerciseStatus(notes?: string): Exercise["status"] {
+function mapExerciseStatus(notes?: string, archivedAt?: string | null): Exercise["status"] {
+  if (archivedAt) return "archived";
   if (notes?.includes("status:archived")) return "archived";
   return notes?.includes("status:unreviewed") ? "unreviewed" : "active";
 }
@@ -103,6 +105,45 @@ export async function getSessions(userId: string): Promise<WorkoutSession[]> {
 export async function getRecentSessions(userId: string, limit = 10): Promise<WorkoutSession[]> {
   const all = await getSessions(userId);
   return all.slice(0, limit);
+}
+
+export async function getWorkoutSessionWithSets(
+  userId: string,
+  sessionId: string
+): Promise<{ session: WorkoutSession; sets: WorkoutSet[] } | null> {
+  if (isDemo()) {
+    const { storeSessionById, storeSetsForSessions } = await import("@/lib/store");
+    const session = storeSessionById(userId, sessionId);
+    if (!session) return null;
+    return { session, sets: storeSetsForSessions([sessionId]) };
+  }
+  if (!isValidUuid(userId) || !sessionId) {
+    console.error("[data] getWorkoutSessionWithSets invalid ids", { userId, sessionId });
+    return null;
+  }
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data: session, error: sessionError } = await supabase
+    .from("workout_sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (sessionError) {
+    logSupabaseError("getWorkoutSessionWithSets session lookup failed", sessionError);
+    return null;
+  }
+  if (!session) return null;
+  const { data: sets, error: setsError } = await supabase
+    .from("workout_sets")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true });
+  if (setsError) {
+    logSupabaseError("getWorkoutSessionWithSets sets lookup failed", setsError);
+    return null;
+  }
+  return { session, sets: sets ?? [] };
 }
 
 // ---------------------------------------------------------------
@@ -171,6 +212,114 @@ export async function updateSet(id: string, patch: Partial<WorkoutSet>): Promise
   const supabase = await createClient();
   const { error } = await supabase.from("workout_sets").update(patch).eq("id", id);
   if (error) logSupabaseError("updateSet failed", error);
+}
+
+export async function updateWorkoutSessionWithSets(
+  userId: string,
+  sessionPatch: Pick<WorkoutSession, "id" | "date" | "notes" | "workout_type" | "duration_minutes">,
+  sets: WorkoutSet[]
+): Promise<{ success: boolean; session?: WorkoutSession; sets?: WorkoutSet[]; error?: string }> {
+  if (isDemo()) {
+    const { storeSessionById, storeUpdateSessionWithSets } = await import("@/lib/store");
+    const existing = storeSessionById(userId, sessionPatch.id);
+    if (!existing) return { success: false, error: "Workout session not found." };
+    const updated = storeUpdateSessionWithSets(userId, { ...existing, ...sessionPatch }, sets);
+    return updated ? { success: true, session: updated, sets } : { success: false, error: "Workout update failed." };
+  }
+  if (!isValidUuid(userId) || !sessionPatch.id) {
+    return { success: false, error: "Invalid workout session id." };
+  }
+  const existing = await getWorkoutSessionWithSets(userId, sessionPatch.id);
+  if (!existing) return { success: false, error: "Workout session not found." };
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const sessionPayload = {
+    date: sessionPatch.date,
+    notes: sessionPatch.notes ?? null,
+    workout_type: sessionPatch.workout_type ?? null,
+    duration_minutes: sessionPatch.duration_minutes ?? null,
+  };
+
+  const { data: updatedSession, error: sessionError } = await supabase
+    .from("workout_sessions")
+    .update(sessionPayload)
+    .eq("id", sessionPatch.id)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (sessionError || !updatedSession) {
+    logSupabaseError("updateWorkoutSessionWithSets session update failed", sessionError);
+    return { success: false, error: sessionError?.message ?? "Workout update failed." };
+  }
+
+  const { error: deleteError } = await supabase.from("workout_sets").delete().eq("session_id", sessionPatch.id);
+  if (deleteError) {
+    logSupabaseError("updateWorkoutSessionWithSets set delete failed", deleteError);
+    return { success: false, error: deleteError.message ?? "Could not replace workout sets." };
+  }
+
+  if (sets.length > 0) {
+    const { error: insertError } = await supabase.from("workout_sets").insert(sets);
+    if (insertError) {
+      logSupabaseError("updateWorkoutSessionWithSets set insert failed", insertError);
+      const { error: restoreSessionError } = await supabase
+        .from("workout_sessions")
+        .update({
+          date: existing.session.date,
+          notes: existing.session.notes ?? null,
+          workout_type: existing.session.workout_type ?? null,
+          duration_minutes: existing.session.duration_minutes ?? null,
+        })
+        .eq("id", existing.session.id)
+        .eq("user_id", userId);
+      if (restoreSessionError) logSupabaseError("updateWorkoutSessionWithSets session restore failed", restoreSessionError);
+      if (existing.sets.length > 0) {
+        const { error: restoreSetsError } = await supabase.from("workout_sets").insert(existing.sets);
+        if (restoreSetsError) logSupabaseError("updateWorkoutSessionWithSets sets restore failed", restoreSetsError);
+      }
+      return { success: false, error: insertError.message ?? "Could not save workout sets. Your edits were not applied." };
+    }
+  }
+
+  return { success: true, session: updatedSession, sets };
+}
+
+export async function deleteWorkoutSession(
+  userId: string,
+  sessionId: string
+): Promise<{ success: boolean; sessions_deleted: number; sets_deleted: number; error?: string }> {
+  if (isDemo()) {
+    const { storeDeleteSession } = await import("@/lib/store");
+    const deleted = storeDeleteSession(userId, sessionId);
+    return deleted.sessions_deleted
+      ? { success: true, ...deleted }
+      : { success: false, sessions_deleted: 0, sets_deleted: 0, error: "Workout session not found." };
+  }
+  if (!isValidUuid(userId) || !sessionId) {
+    return { success: false, sessions_deleted: 0, sets_deleted: 0, error: "Invalid workout session id." };
+  }
+  const existing = await getWorkoutSessionWithSets(userId, sessionId);
+  if (!existing) {
+    return { success: false, sessions_deleted: 0, sets_deleted: 0, error: "Workout session not found." };
+  }
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .delete()
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .select("id");
+  if (error) {
+    logSupabaseError("deleteWorkoutSession failed", error);
+    return { success: false, sessions_deleted: 0, sets_deleted: 0, error: error.message ?? "Workout delete failed." };
+  }
+  return {
+    success: true,
+    sessions_deleted: data?.length ?? 0,
+    sets_deleted: existing.sets.length,
+  };
 }
 
 // ---------------------------------------------------------------
@@ -724,10 +873,13 @@ export async function getExercises(): Promise<Exercise[]> {
     logSupabaseError("getExercises failed", error);
     return MOCK_EXERCISES;
   }
+  const equipment = await getEquipment();
+  const equipmentById = new Map(equipment.map((item) => [item.id, item]));
   return (data ?? MOCK_EXERCISES).map((exercise) => ({
     ...exercise,
-    status: mapExerciseStatus(exercise.notes),
+    status: mapExerciseStatus(exercise.notes, exercise.archived_at),
     library_category: exercise.library_category ?? "Strength",
+    equipment: exercise.equipment_id ? equipmentById.get(exercise.equipment_id) : undefined,
   }));
 }
 
@@ -766,6 +918,9 @@ export async function saveExerciseDefinition(input: {
   id?: string;
   name: string;
   aliases?: string[] | string;
+  equipment_id?: string | null;
+  status?: Exercise["status"];
+  muscle_groups?: MuscleGroup[];
   tags?: WorkoutTag[];
   library_category?: ExerciseLibraryCategory;
   phase_order?: number;
@@ -778,6 +933,7 @@ export async function saveExerciseDefinition(input: {
   const libraryCategory = input.library_category ?? "Strength";
   const aliases = normalizeAliases(input.aliases);
   const tags = input.tags?.length ? input.tags : tagsForLibraryCategory(libraryCategory);
+  const status = input.status ?? "active";
 
   if (isDemo()) {
     const { storeUpsertExercise } = await import("@/lib/store");
@@ -785,10 +941,12 @@ export async function saveExerciseDefinition(input: {
       id: input.id,
       name,
       aliases,
+      equipment_id: input.equipment_id ?? undefined,
+      muscle_groups: input.muscle_groups ?? [],
       tags,
       library_category: libraryCategory,
       phase_order: input.phase_order,
-      notes: buildExerciseNotes("active", input.notes),
+      notes: buildExerciseNotes(status, input.notes),
     });
     if (result.duplicate) return { success: false, duplicate: result.duplicate, error: "An exercise with that name already exists." };
     return { success: true, exercise: result.exercise };
@@ -812,11 +970,13 @@ export async function saveExerciseDefinition(input: {
     name,
     canonical_name: canonicalName,
     aliases,
+    equipment_id: input.equipment_id || null,
+    muscle_groups: input.muscle_groups ?? [],
     tags,
     library_category: libraryCategory,
     phase_order: input.phase_order ?? 0,
-    archived_at: null,
-    notes: buildExerciseNotes("active", input.notes),
+    archived_at: status === "archived" ? new Date().toISOString() : null,
+    notes: buildExerciseNotes(status, input.notes),
     created_at: new Date().toISOString(),
   };
 
@@ -830,7 +990,16 @@ export async function saveExerciseDefinition(input: {
     logSupabaseError("saveExerciseDefinition failed", error);
     return { success: false, error: error?.message ?? "Exercise save failed." };
   }
-  return { success: true, exercise: { ...data, status: mapExerciseStatus(data.notes), library_category: data.library_category ?? "Strength" } };
+  const equipment = data.equipment_id ? (await getEquipment()).find((item) => item.id === data.equipment_id) : undefined;
+  return {
+    success: true,
+    exercise: {
+      ...data,
+      status: mapExerciseStatus(data.notes, data.archived_at),
+      library_category: data.library_category ?? "Strength",
+      equipment,
+    },
+  };
 }
 
 export async function archiveExerciseDefinition(id: string): Promise<{ success: boolean; exercise?: Exercise; error?: string }> {
@@ -858,7 +1027,8 @@ export async function archiveExerciseDefinition(id: string): Promise<{ success: 
     logSupabaseError("archiveExerciseDefinition failed", error);
     return { success: false, error: error?.message ?? "Archive failed." };
   }
-  return { success: true, exercise: { ...data, status: "archived", library_category: data.library_category ?? "Strength" } };
+  const equipment = data.equipment_id ? (await getEquipment()).find((item) => item.id === data.equipment_id) : undefined;
+  return { success: true, exercise: { ...data, status: "archived", library_category: data.library_category ?? "Strength", equipment } };
 }
 
 export async function getCanonicalExercises(): Promise<CanonicalExercise[]> {
@@ -1001,7 +1171,10 @@ export async function insertSessionWithSets(
   session: WorkoutSession,
   sets: WorkoutSet[]
 ): Promise<void> {
-  await insertSessionWithSetsIfNew(session, sets);
+  const result = await insertSessionWithSetsIfNew(session, sets);
+  if (result.error) {
+    throw new Error(result.error);
+  }
 }
 
 export async function insertSessionWithSetsIfNew(
@@ -1062,7 +1235,16 @@ export async function insertSessionWithSetsIfNew(
     }
   }
 
-  const { error: sessionError } = await supabase.from("workout_sessions").insert(session);
+  let { error: sessionError } = await supabase.from("workout_sessions").insert(session);
+  if (sessionError && session.workout_type) {
+    const message = "message" in sessionError ? String(sessionError.message ?? "") : "";
+    if (message.includes("workout_type")) {
+      console.warn("[data] workout_sessions.workout_type is missing; retrying session insert without that column. Apply migration 008 to store workout_type separately.");
+      const { workout_type: _workoutType, ...sessionWithoutWorkoutType } = session;
+      const retry = await supabase.from("workout_sessions").insert(sessionWithoutWorkoutType);
+      sessionError = retry.error;
+    }
+  }
   if (sessionError) {
     logSupabaseError("insertSessionWithSets session insert failed", sessionError);
     const code = typeof sessionError === "object" && sessionError && "code" in sessionError
@@ -1073,15 +1255,21 @@ export async function insertSessionWithSetsIfNew(
       skipped: code === "23505",
       sessionId: session.id,
       setsInserted: 0,
-      error: code === "23505" ? undefined : "Session insert failed",
+      error: code === "23505" ? undefined : sessionError.message ?? "Session insert failed",
     };
   }
   if (sets.length > 0) {
     const { error: setsError } = await supabase.from("workout_sets").insert(sets);
     if (setsError) {
       logSupabaseError("insertSessionWithSets sets insert failed", setsError);
+      const { error: rollbackError } = await supabase
+        .from("workout_sessions")
+        .delete()
+        .eq("id", session.id)
+        .eq("user_id", session.user_id);
+      if (rollbackError) logSupabaseError("insertSessionWithSets rollback failed", rollbackError);
       return {
-        inserted: true,
+        inserted: false,
         skipped: false,
         sessionId: session.id,
         setsInserted: 0,

@@ -122,6 +122,7 @@ export interface WorkoutSession {
   user_id: string;
   date: string; // ISO date
   notes?: string;
+  workout_type?: string;
   source: WorkoutSource;
   raw_text?: string;
   duration_minutes?: number;

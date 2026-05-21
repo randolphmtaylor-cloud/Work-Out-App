@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CheckCircle, Circle, Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -80,8 +80,11 @@ export function HomeWorkoutLogger() {
   const [customName, setCustomName] = useState("");
   const [customKind, setCustomKind] = useState<HomeExerciseKind>("bodyweight");
   const [sessionNotes, setSessionNotes] = useState("");
+  const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const sessionDateRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [startTime] = useState(() => Date.now());
 
   const completedCount = exercises.filter((exercise) => exercise.completed).length;
@@ -114,11 +117,17 @@ export function HomeWorkoutLogger() {
   }
 
   async function handleSave() {
+    if (saving) return;
+    setError(null);
     const completed = exercises.filter((exercise) => exercise.completed);
-    if (completed.length === 0) return;
+    if (completed.length === 0) {
+      setError("Check off at least one exercise before saving.");
+      return;
+    }
 
     setSaving(true);
     const elapsedMin = Math.round((Date.now() - startTime) / 60000);
+    const selectedDate = sessionDateRef.current?.value || sessionDate;
 
     const sets = completed.flatMap((exercise) => {
       const setCount = exercise.kind === "run"
@@ -136,24 +145,32 @@ export function HomeWorkoutLogger() {
     });
 
     try {
+      console.log("[home-workout-logger] saving manual workout", {
+        date: selectedDate,
+        exercises: completed.length,
+        sets: sets.length,
+      });
       const response = await fetch("/api/workouts/log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: new Date().toISOString().split("T")[0],
+          date: selectedDate,
           duration_minutes: Math.max(elapsedMin, 1),
           workout_type: "home",
           sets,
           notes: sessionNotes.trim() || undefined,
         }),
       });
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) throw new Error("Failed to save home workout");
+      if (!response.ok) throw new Error(data.error ?? "Failed to save home workout");
 
       setSaved(true);
-      setTimeout(() => router.refresh(), 800);
-    } catch {
-      alert("Failed to save home workout. Please try again.");
+      setTimeout(() => router.push("/history"), 900);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save home workout. Please try again.";
+      console.error("[home-workout-logger] save failed", err);
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -197,6 +214,18 @@ export function HomeWorkoutLogger() {
           </div>
         </CardContent>
       </Card>
+
+      <label className="block space-y-1 rounded-lg border border-zinc-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Workout date</span>
+        <input
+          type="date"
+          value={sessionDate}
+          ref={sessionDateRef}
+          onChange={(event) => setSessionDate(event.target.value)}
+          onInput={(event) => setSessionDate(event.currentTarget.value)}
+          className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+        />
+      </label>
 
       <Card>
         <CardHeader className="pb-2">
@@ -278,6 +307,7 @@ export function HomeWorkoutLogger() {
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 Saved sessions appear in history as Home Workout.
               </p>
+              {error && <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{error}</p>}
             </div>
             <Button
               type="button"

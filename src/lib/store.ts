@@ -18,6 +18,7 @@ import {
   ImportBatch,
   LegacyImportPreview,
   ExerciseLibraryCategory,
+  MuscleGroup,
   WorkoutTag,
 } from "@/types";
 import {
@@ -56,6 +57,32 @@ export function storeInsertSession(session: WorkoutSession): void {
 
 export function storeSessionExistsBySourceId(userId: string, sourceId: string): boolean {
   return store.sessions.some((s) => s.user_id === userId && s.source_id === sourceId);
+}
+
+export function storeSessionById(userId: string, sessionId: string): WorkoutSession | null {
+  return store.sessions.find((session) => session.user_id === userId && session.id === sessionId) ?? null;
+}
+
+export function storeUpdateSessionWithSets(
+  userId: string,
+  session: WorkoutSession,
+  sets: WorkoutSet[]
+): WorkoutSession | null {
+  const idx = store.sessions.findIndex((item) => item.user_id === userId && item.id === session.id);
+  if (idx === -1) return null;
+  store.sessions[idx] = { ...store.sessions[idx], ...session, user_id: userId };
+  store.sets = store.sets.filter((set) => set.session_id !== session.id);
+  store.sets.push(...sets);
+  return store.sessions[idx];
+}
+
+export function storeDeleteSession(userId: string, sessionId: string): { sessions_deleted: number; sets_deleted: number } {
+  const session = store.sessions.find((item) => item.user_id === userId && item.id === sessionId);
+  if (!session) return { sessions_deleted: 0, sets_deleted: 0 };
+  const setsDeleted = store.sets.filter((set) => set.session_id === sessionId).length;
+  store.sets = store.sets.filter((set) => set.session_id !== sessionId);
+  store.sessions = store.sessions.filter((item) => item.id !== sessionId);
+  return { sessions_deleted: 1, sets_deleted: setsDeleted };
 }
 
 // ---- Sets ----
@@ -305,6 +332,8 @@ export function storeUpsertExercise(input: {
   id?: string;
   name: string;
   aliases: string[];
+  equipment_id?: string | null;
+  muscle_groups?: MuscleGroup[];
   tags: WorkoutTag[];
   library_category: ExerciseLibraryCategory;
   phase_order?: number;
@@ -332,11 +361,18 @@ export function storeUpsertExercise(input: {
         name: input.name,
         canonical_name: canonical,
         aliases: input.aliases,
+        equipment_id: input.equipment_id ?? undefined,
+        muscle_groups: input.muscle_groups ?? store.exercises[idx].muscle_groups,
         tags: input.tags,
         library_category: input.library_category,
         phase_order: input.phase_order,
         notes: input.notes,
-        status: input.notes?.includes("status:archived") ? "archived" : "active",
+        status: input.notes?.includes("status:archived")
+          ? "archived"
+          : input.notes?.includes("status:unreviewed")
+            ? "unreviewed"
+            : "active",
+        archived_at: input.notes?.includes("status:archived") ? (store.exercises[idx].archived_at ?? now) : undefined,
       };
       return { exercise: store.exercises[idx], created: false };
     }
@@ -347,7 +383,8 @@ export function storeUpsertExercise(input: {
     name: input.name,
     canonical_name: canonical,
     aliases: input.aliases,
-    muscle_groups: [],
+    equipment_id: input.equipment_id ?? undefined,
+    muscle_groups: input.muscle_groups ?? [],
     tags: input.tags,
     library_category: input.library_category,
     phase_order: input.phase_order,
