@@ -36,7 +36,7 @@ const UUID_REGEX =
 
 const isValidUuid = (value: string) => UUID_REGEX.test(value);
 
-function logSupabaseError(context: string, error: unknown) {
+function logSupabaseError(context: string, error: unknown, meta?: Record<string, unknown>) {
   const supabaseError =
     error && typeof error === "object"
       ? (error as {
@@ -52,8 +52,31 @@ function logSupabaseError(context: string, error: unknown) {
     code: supabaseError?.code,
     details: supabaseError?.details,
     hint: supabaseError?.hint,
+    ...meta,
     error,
   });
+}
+
+function describeSetInsertPayload(sets: WorkoutSet[]) {
+  return {
+    count: sets.length,
+    keys: Array.from(new Set(sets.flatMap((set) => Object.keys(set)))).sort(),
+    sessionIds: Array.from(new Set(sets.map((set) => set.session_id))).slice(0, 5),
+    exerciseIds: Array.from(new Set(sets.map((set) => set.exercise_id))).slice(0, 10),
+    sample: sets.slice(0, 3).map((set) => ({
+      id: set.id,
+      session_id: set.session_id,
+      exercise_id: set.exercise_id,
+      set_number: set.set_number,
+      repsType: typeof set.reps,
+      weightType: typeof set.weight_lbs,
+      bodyweightType: typeof set.bodyweight_lbs,
+      rpeType: typeof set.rpe,
+      hasNotes: Boolean(set.notes),
+      is_warmup: set.is_warmup,
+      created_at: set.created_at,
+    })),
+  };
 }
 
 function toCanonicalName(name: string) {
@@ -1261,7 +1284,9 @@ export async function insertSessionWithSetsIfNew(
   if (sets.length > 0) {
     const { error: setsError } = await supabase.from("workout_sets").insert(sets);
     if (setsError) {
-      logSupabaseError("insertSessionWithSets sets insert failed", setsError);
+      logSupabaseError("insertSessionWithSets sets insert failed", setsError, {
+        payload: describeSetInsertPayload(sets),
+      });
       const { error: rollbackError } = await supabase
         .from("workout_sessions")
         .delete()
@@ -1273,7 +1298,7 @@ export async function insertSessionWithSetsIfNew(
         skipped: false,
         sessionId: session.id,
         setsInserted: 0,
-        error: "Set insert failed",
+        error: "Workout sets could not be saved. Check that each exercise exists in your exercise library, then try again.",
       };
     }
   }
