@@ -371,7 +371,9 @@ export function ExerciseLibraryManager({
               <div key={exercise.id} className="grid gap-3 border-b border-zinc-100 p-4 last:border-0 dark:border-zinc-800 md:grid-cols-[1fr_auto]">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-zinc-950 dark:text-zinc-50">{exercise.name}</p>
+                    <Link href={`/exercises/${exercise.id}`} className="font-medium text-zinc-950 underline-offset-4 hover:underline dark:text-zinc-50">
+                      {exercise.name}
+                    </Link>
                     <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800">{exercise.status ?? "active"}</span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">

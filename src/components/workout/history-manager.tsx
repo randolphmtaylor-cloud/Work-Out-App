@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDisplay } from "@/lib/utils/dates";
+import { formatWeightInput, parseWeightInput } from "@/lib/weights";
 import type { Exercise, WorkoutSession, WorkoutSet } from "@/types";
 
 type SessionWithSets = WorkoutSession & {
@@ -96,7 +97,7 @@ function toDraft(
         .map((set) => ({
           id: set.id,
           reps: set.reps ? String(set.reps) : "",
-          weight_lbs: set.weight_lbs ? String(set.weight_lbs) : "",
+          weight_lbs: formatWeightInput(set),
           notes: set.notes ?? "",
           is_warmup: set.is_warmup,
         })),
@@ -194,7 +195,7 @@ export function HistoryManager({
         exercise_name: exercise.exercise_id ? undefined : exercise.exercise_name,
         set_number: index + 1,
         reps: numberOrUndefined(set.reps),
-        weight_lbs: numberOrUndefined(set.weight_lbs),
+        ...parseWeightInput(set.weight_lbs),
         is_warmup: set.is_warmup,
         notes: set.notes || undefined,
       }))
@@ -328,7 +329,7 @@ export function HistoryManager({
                       <div key={`${exercise.key}-${index}`} className="grid gap-2 md:grid-cols-[64px_96px_96px_1fr_auto_auto]">
                         <div className="flex h-10 items-center text-xs font-medium text-zinc-500">Set {index + 1}</div>
                         <input value={set.reps} onChange={(event) => updateDraftSet(exercise.key, index, { reps: event.target.value })} type="number" min={1} placeholder="Reps" className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                        <input value={set.weight_lbs} onChange={(event) => updateDraftSet(exercise.key, index, { weight_lbs: event.target.value })} type="number" min={0} step="0.5" placeholder="Weight" className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                        <input value={set.weight_lbs} onChange={(event) => updateDraftSet(exercise.key, index, { weight_lbs: event.target.value })} type="text" inputMode="decimal" placeholder="Weight or BW" className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                         <input value={set.notes} onChange={(event) => updateDraftSet(exercise.key, index, { notes: event.target.value })} placeholder="Set notes" className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                         <label className="flex h-10 items-center gap-2 text-xs text-zinc-500">
                           <input type="checkbox" checked={set.is_warmup} onChange={(event) => updateDraftSet(exercise.key, index, { is_warmup: event.target.checked })} />

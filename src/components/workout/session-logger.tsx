@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import type { Exercise, ExerciseSubstitution, GeneratedRoutine, ExercisePrescription } from "@/types";
 import { useRouter } from "next/navigation";
+import { formatWeightInput, parseWeightInput } from "@/lib/weights";
 
 interface LoggedSet {
   exercise_id: string;
   set_number: number;
   reps?: number;
   weight_lbs?: number;
+  bodyweight_lbs?: number;
   completed: boolean;
 }
 
@@ -88,12 +90,14 @@ export function SessionLogger({ routine }: Props) {
   );
 
   const updateSet = useCallback(
-    (exerciseId: string, setNumber: number, field: "reps" | "weight_lbs", value: string) => {
+    (exerciseId: string, setNumber: number, field: "reps" | "weight", value: string) => {
       const num = parseFloat(value);
       setLoggedSets((prev) =>
         prev.map((s) =>
           s.exercise_id === exerciseId && s.set_number === setNumber
-            ? { ...s, [field]: isNaN(num) ? undefined : num, completed: true }
+            ? field === "weight"
+              ? { ...s, weight_lbs: undefined, bodyweight_lbs: undefined, ...parseWeightInput(value), completed: true }
+              : { ...s, reps: isNaN(num) ? undefined : num, completed: true }
             : s
         )
       );
@@ -189,7 +193,7 @@ export function SessionLogger({ routine }: Props) {
     setLoggedSets((prev) =>
       prev.map((set) =>
         set.exercise_id === exerciseId
-          ? { ...set, completed: false, reps: undefined, weight_lbs: undefined }
+          ? { ...set, completed: false, reps: undefined, weight_lbs: undefined, bodyweight_lbs: undefined }
           : set
       )
     );
@@ -229,7 +233,7 @@ export function SessionLogger({ routine }: Props) {
       setLoggedSets((prev) =>
         prev.map((set) =>
           set.exercise_id === current.exercise_id
-            ? { ...set, exercise_id: substitution.exercise_id, completed: false, reps: undefined, weight_lbs: undefined }
+            ? { ...set, exercise_id: substitution.exercise_id, completed: false, reps: undefined, weight_lbs: undefined, bodyweight_lbs: undefined }
             : set
         )
       );
@@ -253,6 +257,7 @@ export function SessionLogger({ routine }: Props) {
         set_number: s.set_number,
         reps: s.reps,
         weight_lbs: s.weight_lbs,
+        bodyweight_lbs: s.bodyweight_lbs,
         is_warmup: false,
       }));
 
@@ -557,7 +562,7 @@ function SetRow({
   set: LoggedSet;
   prescription: ExercisePrescription;
   onToggle: () => void;
-  onUpdate: (field: "reps" | "weight_lbs", val: string) => void;
+  onUpdate: (field: "reps" | "weight", val: string) => void;
 }) {
   const suggestedWeight = (() => {
     const m = prescription.notes?.match(/(\d+(?:\.\d+)?)\s*lbs/);
@@ -582,14 +587,15 @@ function SetRow({
 
       {/* Weight input */}
       <input
-        type="number"
+        type="text"
+        inputMode="decimal"
         placeholder={suggestedWeight || "lbs"}
-        defaultValue={set.weight_lbs ?? ""}
-        onChange={(e) => onUpdate("weight_lbs", e.target.value)}
-        className="w-16 text-sm text-center bg-white dark:bg-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-600 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-        aria-label="Weight in lbs"
+        defaultValue={formatWeightInput(set)}
+        onChange={(e) => onUpdate("weight", e.target.value)}
+        className="w-20 text-sm text-center bg-white dark:bg-zinc-800 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-600 rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+        aria-label="Weight in lbs or bodyweight"
       />
-      <span className="text-xs text-zinc-400 dark:text-zinc-500">lbs ×</span>
+      <span className="text-xs text-zinc-400 dark:text-zinc-500">×</span>
 
       {/* Reps input */}
       <input

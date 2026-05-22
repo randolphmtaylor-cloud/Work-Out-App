@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils/cn";
+import { parseWeightInput } from "@/lib/weights";
 
 type HomeExerciseKind = "bodyweight" | "run" | "weighted";
 
@@ -49,7 +50,7 @@ function toLog(template: HomeExerciseTemplate): HomeExerciseLog {
     completed: false,
     setsInput: template.sets?.toString() ?? "",
     repsInput: template.reps?.toString() ?? "",
-    weightInput: "",
+    weightInput: template.kind === "bodyweight" ? "BW" : "",
     distanceInput: "",
     timeInput: "",
     notesInput: template.notes ?? "",
@@ -138,7 +139,7 @@ export function HomeWorkoutLogger() {
         exercise_name: exercise.name.trim(),
         set_number: index + 1,
         reps: numberOrUndefined(exercise.repsInput),
-        weight_lbs: numberOrUndefined(exercise.weightInput),
+        ...parseWeightInput(exercise.weightInput),
         is_warmup: false,
         notes: buildSetNotes(exercise),
       }));
@@ -387,9 +388,9 @@ function HomeExerciseCard({
             <Field label="Sets" value={exercise.setsInput} onChange={(value) => onUpdate({ setsInput: value })} placeholder="3" type="number" />
             <Field label="Reps" value={exercise.repsInput} onChange={(value) => onUpdate({ repsInput: value })} placeholder="10" type="number" />
             {exercise.kind === "weighted" ? (
-              <Field label="Weight" value={exercise.weightInput} onChange={(value) => onUpdate({ weightInput: value })} placeholder="lbs" type="number" />
+              <Field label="Weight" value={exercise.weightInput} onChange={(value) => onUpdate({ weightInput: value })} placeholder="lbs" />
             ) : (
-              <Field label="Weight" value={exercise.weightInput} onChange={(value) => onUpdate({ weightInput: value })} placeholder="optional" type="number" />
+              <Field label="Weight" value={exercise.weightInput} onChange={(value) => onUpdate({ weightInput: value })} placeholder="BW" />
             )}
           </div>
         )}

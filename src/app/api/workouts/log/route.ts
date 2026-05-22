@@ -1,5 +1,6 @@
 // POST /api/workouts/log
 // Saves a completed session from the Today page set-tracker.
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createUnreviewedExercise, insertSessionWithSets, markRoutineComplete, getActivePhase, getExercises } from "@/lib/data";
@@ -12,6 +13,11 @@ const OptionalPositiveNumber = z.preprocess((value) => {
   return typeof value === "string" ? Number(value) : value;
 }, z.number().positive().optional());
 
+const OptionalNonNegativeNumber = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return undefined;
+  return typeof value === "string" ? Number(value) : value;
+}, z.number().nonnegative().optional());
+
 const SetSchema = z.object({
   exercise_id: z.string().optional(),
   exercise_name: z.string().trim().min(1).optional(),
@@ -21,7 +27,7 @@ const SetSchema = z.object({
     return typeof value === "string" ? Number(value) : value;
   }, z.number().int().positive().optional()),
   weight_lbs: OptionalPositiveNumber,
-  bodyweight_lbs: OptionalPositiveNumber,
+  bodyweight_lbs: OptionalNonNegativeNumber,
   is_warmup: z.boolean().default(false),
   rpe: z.preprocess((value) => {
     if (value === "" || value === null || value === undefined) return undefined;
@@ -195,5 +201,10 @@ export async function POST(req: NextRequest) {
     workoutType: body.workout_type,
     setCount: sets.length,
   });
+  revalidatePath("/dashboard");
+  revalidatePath("/history");
+  revalidatePath("/progress");
+  revalidatePath("/coach");
+  revalidatePath("/exercises");
   return NextResponse.json({ success: true, session_id: sessionId, sets_logged: sets.length });
 }

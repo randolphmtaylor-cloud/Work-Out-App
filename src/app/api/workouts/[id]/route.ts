@@ -13,7 +13,7 @@ const SetSchema = z.object({
   set_number: z.number().int().positive(),
   reps: z.number().int().positive().optional(),
   weight_lbs: z.number().positive().optional(),
-  bodyweight_lbs: z.number().positive().optional(),
+  bodyweight_lbs: z.number().nonnegative().optional(),
   is_warmup: z.boolean().default(false),
   rpe: z.number().min(1).max(10).optional(),
   notes: z.string().optional(),
@@ -38,6 +38,7 @@ function refreshWorkoutViews() {
   revalidatePath("/dashboard");
   revalidatePath("/progress");
   revalidatePath("/coach");
+  revalidatePath("/exercises");
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {

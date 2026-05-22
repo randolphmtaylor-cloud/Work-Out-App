@@ -9,36 +9,33 @@ import {
   getRecentSessions,
   getLatestSummary,
   getTodayRoutine,
-  getAllSets,
 } from "@/lib/data";
 import { computeAnalytics } from "@/lib/analytics";
 import { getAuthStatus } from "@/lib/auth/user";
 import { formatDisplay, formatShort, differenceInDays, parseISO } from "@/lib/utils/dates";
-import type { GeneratedRoutine, TrainingPhase, WeeklySummary, WorkoutSession, WorkoutSet } from "@/types";
+import type { GeneratedRoutine, TrainingPhase, WeeklySummary, WorkoutSession } from "@/types";
 
 export default async function DashboardPage() {
   let phase: TrainingPhase | null = null;
   let sessions: WorkoutSession[] = [];
   let summary: WeeklySummary | null = null;
   let todayRoutine: GeneratedRoutine | null = null;
-  let allSets: WorkoutSet[] = [];
   const auth = await getAuthStatus();
 
   try {
     if (auth.userId) {
-      [phase, sessions, summary, todayRoutine, allSets] = await Promise.all([
+      [phase, sessions, summary, todayRoutine] = await Promise.all([
         getActivePhase(auth.userId),
         getRecentSessions(auth.userId, 30),
         getLatestSummary(auth.userId),
         getTodayRoutine(auth.userId),
-        getAllSets(auth.userId),
       ]);
     }
   } catch (error) {
     console.error("[dashboard] failed to load data, rendering fallback", error);
   }
 
-  const analytics = computeAnalytics(sessions, allSets);
+  const analytics = computeAnalytics(sessions, []);
   const today = new Date().toISOString().split("T")[0];
   const lastSession = sessions[0];
   const daysSinceLast = lastSession
@@ -158,8 +155,8 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {/* Consistency + top lift quick view */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Consistency */}
+      <div className="grid grid-cols-1 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Consistency</CardTitle>
@@ -180,23 +177,6 @@ export default async function DashboardPage() {
             <Link href="/progress" className="block pt-1">
               <span className="text-xs text-indigo-600 hover:underline">View full analytics →</span>
             </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Top Lifts (est. 1RM)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5">
-            {analytics.topSets.slice(0, 3).map((ts) => (
-              <div key={ts.exercise_id} className="flex justify-between text-sm">
-                <span className="text-zinc-600 dark:text-zinc-400 truncate mr-2">{ts.exercise_name}</span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100 shrink-0">~{ts.estimated_1rm} lbs</span>
-              </div>
-            ))}
-            {analytics.topSets.length === 0 && (
-              <p className="text-xs text-zinc-400">Log sessions to see your PRs here.</p>
-            )}
           </CardContent>
         </Card>
       </div>
