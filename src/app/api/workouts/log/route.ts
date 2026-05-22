@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createUnreviewedExercise, insertSessionWithSets, markRoutineComplete, getActivePhase } from "@/lib/data";
 import { WorkoutSession, WorkoutSet } from "@/types";
 import { getCurrentUserId } from "@/lib/auth/user";
+import { validationIssues } from "@/lib/api/validation";
 
 const SetSchema = z.object({
   exercise_id: z.string().optional(),
@@ -23,7 +24,7 @@ const LogSchema = z.object({
   routine_id: z.string().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   duration_minutes: z.number().int().positive().max(240),
-  workout_type: z.enum(["gym", "home", "push", "pull", "legs", "upper", "lower", "full_body", "core"]).default("gym"),
+  workout_type: z.string().trim().min(1).max(50).default("gym"),
   sets: z.array(SetSchema).min(1),
   notes: z.string().optional(),
 });
@@ -40,8 +41,20 @@ export async function POST(req: NextRequest) {
   try {
     body = LogSchema.parse(await req.json());
   } catch (e) {
-    console.error("[workouts/log] invalid request", e);
-    return NextResponse.json({ error: "Invalid request", details: e }, { status: 400 });
+    const issues = validationIssues(e);
+    console.error("[workouts/log] invalid request", {
+      issues,
+      error: e,
+    });
+    return NextResponse.json(
+      {
+        error: issues.length
+          ? "Workout log request has invalid fields."
+          : "Workout log request must be valid JSON.",
+        issues,
+      },
+      { status: 400 }
+    );
   }
 
   const phase = await getActivePhase(userId);

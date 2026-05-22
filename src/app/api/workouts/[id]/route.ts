@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createUnreviewedExercise, deleteWorkoutSession, getWorkoutSessionWithSets, updateWorkoutSessionWithSets } from "@/lib/data";
 import { getCurrentUserId } from "@/lib/auth/user";
 import type { WorkoutSet } from "@/types";
+import { validationIssues } from "@/lib/api/validation";
 
 const SetSchema = z.object({
   id: z.string().optional(),
@@ -64,8 +65,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     body = WorkoutUpdateSchema.parse(await req.json());
   } catch (error) {
-    console.error("[workouts/:id] invalid update request", error);
-    return NextResponse.json({ error: "Invalid workout update request.", details: error }, { status: 400 });
+    const issues = validationIssues(error);
+    console.error("[workouts/:id] invalid update request", {
+      id,
+      userId,
+      issues,
+      error,
+    });
+    return NextResponse.json(
+      {
+        error: issues.length
+          ? "Workout update request has invalid fields."
+          : "Workout update request must be valid JSON.",
+        issues,
+      },
+      { status: 400 }
+    );
   }
 
   const now = new Date().toISOString();
