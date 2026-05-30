@@ -216,6 +216,8 @@ export function SessionLogger({ routine }: Props) {
         exercise_name: substitution.exercise_name,
         equipment_name: substitution.equipment_name,
         notes: `Replacement for ${current.exercise_name}: ${substitution.reason}`,
+        goal_ids: undefined,
+        goal_names: undefined,
         substitutions: [
           {
             exercise_id: current.exercise_id,
@@ -425,6 +427,11 @@ export function SessionLogger({ routine }: Props) {
                     <p className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">{ex.exercise_name}</p>
                     {ex.equipment_name && (
                       <p className="text-xs text-zinc-400 dark:text-zinc-500">{ex.equipment_name}</p>
+                    )}
+                    {(ex.goal_names ?? []).length > 0 && (
+                      <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                        Included for goal: {ex.goal_names?.join(", ")}
+                      </p>
                     )}
                   </div>
                 </div>

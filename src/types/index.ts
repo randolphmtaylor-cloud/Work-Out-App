@@ -48,6 +48,7 @@ export type ExerciseLibraryCategory =
   | "Running/Cardio"
   | "Warmup"
   | "Recovery";
+export type GoalStatus = "active" | "archived";
 
 // ---------------------------------------------------------------
 // Equipment
@@ -159,6 +160,35 @@ export interface WorkoutSet {
 }
 
 // ---------------------------------------------------------------
+// Workout Goal
+// ---------------------------------------------------------------
+export interface WorkoutGoal {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  focus_area: string;
+  status: GoalStatus;
+  exercise_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoalProgressSession {
+  session_id: string;
+  date: string;
+  set_count: number;
+  exercise_names: string[];
+}
+
+export interface GoalProgress {
+  goal_id: string;
+  total_sets: number;
+  session_count: number;
+  recent_sessions: GoalProgressSession[];
+}
+
+// ---------------------------------------------------------------
 // Generated Routine
 // ---------------------------------------------------------------
 export interface ExercisePrescription {
@@ -170,6 +200,8 @@ export interface ExercisePrescription {
   reps_high: number;
   rest_seconds: number;
   notes?: string;
+  goal_ids?: string[];
+  goal_names?: string[];
   substitutions?: ExerciseSubstitution[]; // similar options if equipment is unavailable
 }
 

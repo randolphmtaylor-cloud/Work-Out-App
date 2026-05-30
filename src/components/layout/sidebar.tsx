@@ -12,6 +12,7 @@ import {
   Zap,
   UserRound,
   Library,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ThemeToggle } from "./theme-toggle";
@@ -21,6 +22,7 @@ import type { AuthStatus as ServerAuthStatus } from "@/lib/auth/user";
 const NAV_ITEMS = [
   { href: "/dashboard",  label: "Dashboard",       icon: LayoutDashboard },
   { href: "/today",      label: "Today's Workout",  icon: Dumbbell },
+  { href: "/goals",      label: "Goals",            icon: Target },
   { href: "/history",    label: "History",          icon: History },
   { href: "/exercises",  label: "Exercise Library", icon: Library },
   { href: "/import",     label: "Import",           icon: Upload },

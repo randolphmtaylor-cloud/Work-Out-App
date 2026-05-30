@@ -206,5 +206,6 @@ export async function POST(req: NextRequest) {
   revalidatePath("/progress");
   revalidatePath("/coach");
   revalidatePath("/exercises");
+  revalidatePath("/goals");
   return NextResponse.json({ success: true, session_id: sessionId, sets_logged: sets.length });
 }

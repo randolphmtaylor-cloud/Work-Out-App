@@ -58,6 +58,15 @@ export const MOCK_EXERCISES: Exercise[] = [
   { id: "ex-18", name: "Seated Cable Row",              canonical_name: "seated-cable-row",              aliases: ["seated row","seated rows","seated cable row","seated row - mag"], equipment_id: "eq-6", muscle_groups: ["back","biceps"], tags: ["pull","upper","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-19", name: "Back Extension",                canonical_name: "back-extension",                aliases: ["back extensions","45 degree back extension"], muscle_groups: ["back","glutes","hamstrings"], tags: ["lower","compound"], created_at: "2024-01-01T00:00:00Z" },
   { id: "ex-20", name: "Triceps Machine",               canonical_name: "triceps-machine",               aliases: ["icarian triceps","icarian tricepts","triceps machine"], equipment_id: "eq-2", muscle_groups: ["triceps"], tags: ["push","upper","isolation"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-abs-leg-lifts", name: "Lying Leg Lifts", canonical_name: "lying-leg-lifts", aliases: ["lying leg raises", "leg lifts"], muscle_groups: ["core"], tags: ["core", "isolation"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-abs-sit-ups", name: "Sit-Ups", canonical_name: "sit-ups", aliases: ["sit ups", "situps"], muscle_groups: ["core"], tags: ["core", "isolation"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-abs-plank", name: "Plank", canonical_name: "plank", aliases: ["forearm plank"], muscle_groups: ["core"], tags: ["core", "isolation"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-abs-knee-raise", name: "Hanging Knee Raise", canonical_name: "hanging-knee-raise", aliases: ["hanging leg raise"], equipment_id: "eq-4", muscle_groups: ["core"], tags: ["core", "compound"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-abs-cable-crunch", name: "Cable Crunch", canonical_name: "cable-crunch", aliases: ["rope crunch"], equipment_id: "eq-6", muscle_groups: ["core"], tags: ["core", "isolation"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-glutes-hip-thrust", name: "Hip Thrust", canonical_name: "hip-thrust", aliases: ["barbell hip thrust"], equipment_id: "eq-8", muscle_groups: ["glutes", "hamstrings"], tags: ["legs", "lower", "compound"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-glutes-rdl", name: "Romanian Deadlift", canonical_name: "romanian-deadlift", aliases: ["rdl"], equipment_id: "eq-8", muscle_groups: ["glutes", "hamstrings", "back"], tags: ["legs", "lower", "compound"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-glutes-bridge", name: "Glute Bridge", canonical_name: "glute-bridge", aliases: ["bridges"], muscle_groups: ["glutes"], tags: ["legs", "lower", "isolation"], created_at: "2024-01-01T00:00:00Z" },
+  { id: "goal-glutes-kickback", name: "Cable Kickback", canonical_name: "cable-kickback", aliases: ["glute kickback"], equipment_id: "eq-6", muscle_groups: ["glutes"], tags: ["legs", "lower", "isolation"], created_at: "2024-01-01T00:00:00Z" },
 ];
 
 // ---------------------------------------------------------------

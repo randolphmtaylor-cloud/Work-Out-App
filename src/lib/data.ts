@@ -15,10 +15,13 @@ import {
   ExerciseLibraryCategory,
   MuscleGroup,
   WorkoutTag,
+  WorkoutGoal,
+  GoalStatus,
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
 import { DEFAULT_CANONICAL_EXERCISES } from "@/lib/canonical-exercises";
 import { getSupabasePublicEnv } from "@/lib/supabase/config";
+import { inferGoalExerciseIds, STARTER_GOALS } from "@/lib/goals";
 
 export interface InsertSessionWithSetsResult {
   inserted: boolean;
@@ -835,6 +838,113 @@ export async function markRoutineComplete(routineId: string, sessionId: string):
     .update({ was_completed: true, completed_session_id: sessionId })
     .eq("id", routineId);
   if (error) logSupabaseError("markRoutineComplete failed", error);
+}
+
+// ---------------------------------------------------------------
+// Goals
+// ---------------------------------------------------------------
+async function syncGoalExerciseLinks(goal: WorkoutGoal): Promise<WorkoutGoal> {
+  const exercises = await getExercises();
+  const exerciseIds = inferGoalExerciseIds(goal, exercises);
+  if (isDemo()) return { ...goal, exercise_ids: exerciseIds };
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { error: deleteError } = await supabase.from("goal_exercise_links").delete().eq("goal_id", goal.id);
+  if (deleteError) logSupabaseError("syncGoalExerciseLinks delete failed", deleteError, { goalId: goal.id });
+  if (exerciseIds.length) {
+    const { error: insertError } = await supabase.from("goal_exercise_links").insert(
+      exerciseIds.map((exerciseId) => ({ goal_id: goal.id, exercise_id: exerciseId }))
+    );
+    if (insertError) logSupabaseError("syncGoalExerciseLinks insert failed", insertError, { goalId: goal.id });
+  }
+  return { ...goal, exercise_ids: exerciseIds };
+}
+
+export async function getGoals(userId: string, options: { ensureStarter?: boolean } = {}): Promise<WorkoutGoal[]> {
+  if (isDemo()) {
+    const { storeGoals } = await import("@/lib/store");
+    return storeGoals(userId);
+  }
+  if (!isValidUuid(userId)) return [];
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_goals")
+    .select("*, goal_exercise_links(exercise_id)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+  if (error) {
+    logSupabaseError("getGoals failed", error);
+    return [];
+  }
+  const goals = (data ?? []).map((goal) => ({
+    ...goal,
+    exercise_ids: (goal.goal_exercise_links ?? []).map((link: { exercise_id: string }) => link.exercise_id),
+  })) as WorkoutGoal[];
+
+  if (options.ensureStarter && goals.length === 0) {
+    for (const starter of STARTER_GOALS) {
+      await saveWorkoutGoal(userId, {
+        name: starter.name,
+        description: starter.description,
+        focus_area: starter.focus_area,
+        status: "active",
+      });
+    }
+    return getGoals(userId);
+  }
+  return goals;
+}
+
+export async function saveWorkoutGoal(
+  userId: string,
+  input: { id?: string; name: string; description: string; focus_area: string; status: GoalStatus }
+): Promise<{ success: boolean; goal?: WorkoutGoal; error?: string }> {
+  const name = input.name.trim();
+  const focusArea = input.focus_area.trim().toLowerCase();
+  if (!name || !focusArea) return { success: false, error: "Goal name and focus area are required." };
+  if (isDemo()) {
+    const { storeSaveGoal } = await import("@/lib/store");
+    return { success: true, goal: storeSaveGoal(userId, { ...input, name, focus_area: focusArea }) };
+  }
+  if (!isValidUuid(userId)) return { success: false, error: "Invalid user id." };
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const payload = {
+    user_id: userId,
+    name,
+    description: input.description.trim(),
+    focus_area: focusArea,
+    status: input.status,
+    updated_at: new Date().toISOString(),
+  };
+  const query = input.id
+    ? supabase.from("workout_goals").update(payload).eq("id", input.id).eq("user_id", userId).select("*").single()
+    : supabase.from("workout_goals").insert(payload).select("*").single();
+  const { data, error } = await query;
+  if (error || !data) {
+    logSupabaseError("saveWorkoutGoal failed", error);
+    return { success: false, error: error?.message ?? "Goal save failed." };
+  }
+  const goal = await syncGoalExerciseLinks({ ...data, exercise_ids: [] } as WorkoutGoal);
+  return { success: true, goal };
+}
+
+export async function deleteWorkoutGoal(userId: string, goalId: string): Promise<{ success: boolean; error?: string }> {
+  if (isDemo()) {
+    const { storeDeleteGoal } = await import("@/lib/store");
+    return storeDeleteGoal(userId, goalId) ? { success: true } : { success: false, error: "Goal not found." };
+  }
+  if (!isValidUuid(userId)) return { success: false, error: "Invalid user id." };
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("workout_goals").delete().eq("id", goalId).eq("user_id", userId).select("id");
+  if (error) {
+    logSupabaseError("deleteWorkoutGoal failed", error);
+    return { success: false, error: error.message };
+  }
+  return data?.length ? { success: true } : { success: false, error: "Goal not found." };
 }
 
 // ---------------------------------------------------------------

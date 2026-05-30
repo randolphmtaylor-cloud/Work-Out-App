@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildDefaultPhase, generateRoutine } from "@/lib/routine-engine";
-import { createDefaultActivePhase, getActivePhase, getRecentSessions, getAllSets, saveGeneratedRoutine, getExercises, getEquipment } from "@/lib/data";
+import { createDefaultActivePhase, getActivePhase, getRecentSessions, getAllSets, saveGeneratedRoutine, getExercises, getEquipment, getGoals } from "@/lib/data";
 import { WorkoutTag } from "@/types";
 import { getCurrentUserId } from "@/lib/auth/user";
 
@@ -17,12 +17,13 @@ export async function POST(req: NextRequest) {
   } catch {}
 
   try {
-    let [phase, recentSessions, allSets, exercises, equipment] = await Promise.all([
+    let [phase, recentSessions, allSets, exercises, equipment, activeGoals] = await Promise.all([
       getActivePhase(userId),
       getRecentSessions(userId, 14), // 2 weeks of sessions for variety detection
       getAllSets(userId),
       getExercises(),
       getEquipment(),
+      getGoals(userId, { ensureStarter: true }),
     ]);
 
     if (!phase) {
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const routine = generateRoutine({ phase, recentSessions, allSets, workoutType, userId, exercises, equipment });
+    const routine = generateRoutine({ phase, recentSessions, allSets, workoutType, userId, exercises, equipment, activeGoals });
     const saveResult = await saveGeneratedRoutine(routine);
     if (!saveResult.saved) {
       console.error("[routines/generate] failed to save generated routine", {

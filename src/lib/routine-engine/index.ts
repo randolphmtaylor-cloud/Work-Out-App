@@ -17,9 +17,11 @@ import {
   ExercisePrescription,
   WorkoutTag,
   Exercise,
+  WorkoutGoal,
 } from "@/types";
 import { MOCK_EXERCISES, MOCK_EQUIPMENT } from "@/lib/mock-data";
 import { getSimilarWorkouts } from "@/lib/workout-repository";
+import { mappedGoalsForExercise } from "@/lib/goals";
 
 // ---- Timing constants ----
 const WARMUP_MINUTES = 3;
@@ -177,6 +179,7 @@ export interface RoutineGenerationInput {
   userId: string;
   exercises?: Exercise[];
   equipment?: Array<{ id: string; name: string }>;
+  activeGoals?: WorkoutGoal[];
 }
 
 export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine {
@@ -186,10 +189,16 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   const cfg = PHASE_CONFIGS[phase.phase_type] ?? PHASE_CONFIGS.accumulation;
 
   const dayType = input.workoutType ?? nextDayType(recentSessions);
+  const activeGoals = (input.activeGoals ?? []).filter((goal) => goal.status === "active");
   const targetMuscles = new Set(TARGET_MUSCLES[dayType] ?? TARGET_MUSCLES.push);
   const recentMuscles = recentlyTrainedMuscles(recentSessions, allSets);
   const lastSessionExercises = exercisesInLastSession(recentSessions, allSets);
   const freq = exerciseFrequency(allSets);
+  const goalsForExercise = (exercise: Exercise) => mappedGoalsForExercise(activeGoals, exercise, dayType);
+  const attributedCoreChoice =
+    library.find((exercise) => exercise.tags.includes("core") && !exercise.tags.includes("compound") && goalsForExercise(exercise).length > 0 && !lastSessionExercises.has(exercise.id)) ??
+    library.find((exercise) => exercise.tags.includes("core") && goalsForExercise(exercise).length > 0 && !lastSessionExercises.has(exercise.id)) ??
+    library.find((exercise) => exercise.tags.includes("core") && goalsForExercise(exercise).length > 0);
 
   // Filter to exercises that match today's target muscles
   const candidates = library.filter((ex) => {
@@ -211,6 +220,9 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
     // Prefer compound movements
     if (ex.tags.includes("compound")) score += 10;
 
+    // Goal work supplements the normal day structure when it fits today's focus.
+    if (goalsForExercise(ex).length > 0) score += 1000;
+
     // Mild penalty if muscles trained within 48h (allowed for compounds)
     const muscleOverlap = [...ex.muscle_groups].some((m) => recentMuscles.has(m));
     if (muscleOverlap && !ex.tags.includes("compound")) score -= 20;
@@ -225,6 +237,7 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
 
   // Build the prescription within the 30-min budget
   const budgetMinutes = MAX_SESSION_MINUTES - WARMUP_MINUTES;
+  const goalCoreReserveMinutes = attributedCoreChoice ? exerciseMinutes(attributedCoreChoice, 3) : 0;
   let minutesUsed = 0;
   const prescriptions: ExercisePrescription[] = [];
   let compoundAdded = 0;
@@ -246,11 +259,12 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
 
     const sets = isCompound ? cfg.compound_sets : cfg.isolation_sets;
     const mins = exerciseMinutes(ex, sets);
-    if (minutesUsed + mins > budgetMinutes) continue;
+    if (minutesUsed + mins > budgetMinutes - goalCoreReserveMinutes) continue;
 
     const lastSet = bestRecentSet(ex.id, allSets, recentSessions);
     const targetWeight = suggestWeight(lastSet, cfg.reps_high);
     const equipment = equipmentLibrary.find((e) => e.id === ex.equipment_id);
+    const matchedGoals = goalsForExercise(ex);
 
     let note: string | undefined;
     if (targetWeight && lastSet?.weight_lbs) {
@@ -272,6 +286,8 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
       reps_high: cfg.reps_high,
       rest_seconds: isCompound ? cfg.compound_rest : cfg.isolation_rest,
       notes: note,
+      goal_ids: matchedGoals.map((goal) => goal.id),
+      goal_names: matchedGoals.map((goal) => goal.name),
       substitutions: getSubstitutions(ex, library, equipmentLibrary),
     });
 
@@ -284,10 +300,13 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   const coreExercises = library.filter((e) => e.tags.includes("core"));
   // Pick one that wasn't done last session, or just the first
   const coreChoice =
-    coreExercises.find((e) => !lastSessionExercises.has(e.id)) ?? coreExercises[0];
+    attributedCoreChoice ??
+    coreExercises.find((e) => !lastSessionExercises.has(e.id)) ??
+    coreExercises[0];
 
   if (coreChoice && minutesUsed + exerciseMinutes(coreChoice, 3) <= budgetMinutes) {
     const coreEquipment = equipmentLibrary.find((e) => e.id === coreChoice.equipment_id);
+    const matchedGoals = goalsForExercise(coreChoice);
     prescriptions.push({
       exercise_id: coreChoice.id,
       exercise_name: coreChoice.name,
@@ -296,6 +315,8 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
       reps_low: 8,
       reps_high: 12,
       rest_seconds: 45,
+      goal_ids: matchedGoals.map((goal) => goal.id),
+      goal_names: matchedGoals.map((goal) => goal.name),
       substitutions: getSimilarWorkouts(coreChoice, 2, library, equipmentLibrary),
     });
     minutesUsed += exerciseMinutes(coreChoice, 3);

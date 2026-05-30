@@ -20,6 +20,7 @@ import {
   ExerciseLibraryCategory,
   MuscleGroup,
   WorkoutTag,
+  WorkoutGoal,
 } from "@/types";
 import {
   MOCK_SESSIONS,
@@ -30,19 +31,68 @@ import {
   MOCK_EXERCISES,
 } from "@/lib/mock-data";
 import { DEFAULT_CANONICAL_EXERCISES } from "@/lib/canonical-exercises";
+import { inferGoalExerciseIds, STARTER_GOALS } from "@/lib/goals";
 
-// ---- Mutable store (module-level, server-side only) ----
-const store = {
-  sessions: [...MOCK_SESSIONS] as WorkoutSession[],
-  sets:     [...MOCK_SETS]     as WorkoutSet[],
-  phases:   [...MOCK_PHASES]   as TrainingPhase[],
-  routines: []                 as GeneratedRoutine[],
-  summaries: [MOCK_LATEST_SUMMARY] as WeeklySummary[],
-  exercises: [...MOCK_EXERCISES] as Exercise[],
-  canonicalExercises: [...DEFAULT_CANONICAL_EXERCISES] as CanonicalExercise[],
-  canonicalMappings: [] as ExerciseCanonicalMapping[],
-  imports: [] as ImportBatch[],
-};
+// Next.js can evaluate route handlers and server pages in separate bundles.
+// Keep demo mutations process-global so a save remains visible after refresh.
+function createDemoStore() {
+  return {
+    sessions: [...MOCK_SESSIONS] as WorkoutSession[],
+    sets:     [...MOCK_SETS]     as WorkoutSet[],
+    phases:   [...MOCK_PHASES]   as TrainingPhase[],
+    routines: []                 as GeneratedRoutine[],
+    summaries: [MOCK_LATEST_SUMMARY] as WeeklySummary[],
+    exercises: [...MOCK_EXERCISES] as Exercise[],
+    canonicalExercises: [...DEFAULT_CANONICAL_EXERCISES] as CanonicalExercise[],
+    canonicalMappings: [] as ExerciseCanonicalMapping[],
+    imports: [] as ImportBatch[],
+    goals: STARTER_GOALS.map((goal, index) => ({
+      id: `starter-goal-${index + 1}`,
+      user_id: "00000000-0000-4000-8000-000000000001",
+      name: goal.name,
+      description: goal.description,
+      focus_area: goal.focus_area,
+      status: "active",
+      exercise_ids: [] as string[],
+      created_at: "2026-04-01T00:00:00Z",
+      updated_at: "2026-04-01T00:00:00Z",
+    })) as WorkoutGoal[],
+  };
+}
+
+type DemoStore = ReturnType<typeof createDemoStore>;
+const globalStore = globalThis as typeof globalThis & { __gymSessionsDemoStore?: DemoStore };
+const store = globalStore.__gymSessionsDemoStore ?? (globalStore.__gymSessionsDemoStore = createDemoStore());
+
+// ---- Goals ----
+function mappedStoreGoal(goal: WorkoutGoal): WorkoutGoal {
+  return {
+    ...goal,
+    exercise_ids: goal.exercise_ids.length ? goal.exercise_ids : inferGoalExerciseIds(goal, store.exercises),
+  };
+}
+
+export function storeGoals(userId: string): WorkoutGoal[] {
+  return store.goals.filter((goal) => goal.user_id === userId).map(mappedStoreGoal);
+}
+
+export function storeSaveGoal(userId: string, input: Omit<WorkoutGoal, "id" | "user_id" | "exercise_ids" | "created_at" | "updated_at"> & { id?: string }): WorkoutGoal {
+  const now = new Date().toISOString();
+  const existing = input.id ? store.goals.findIndex((goal) => goal.id === input.id && goal.user_id === userId) : -1;
+  const goal: WorkoutGoal = existing >= 0
+    ? { ...store.goals[existing], ...input, updated_at: now }
+    : { ...input, id: crypto.randomUUID(), user_id: userId, exercise_ids: [], created_at: now, updated_at: now };
+  goal.exercise_ids = inferGoalExerciseIds(goal, store.exercises);
+  if (existing >= 0) store.goals[existing] = goal;
+  else store.goals.push(goal);
+  return mappedStoreGoal(goal);
+}
+
+export function storeDeleteGoal(userId: string, goalId: string): boolean {
+  const before = store.goals.length;
+  store.goals = store.goals.filter((goal) => !(goal.user_id === userId && goal.id === goalId));
+  return before !== store.goals.length;
+}
 
 // ---- Sessions ----
 export function storeSessions(): WorkoutSession[] {

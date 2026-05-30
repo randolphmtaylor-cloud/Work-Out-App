@@ -39,6 +39,7 @@ function refreshWorkoutViews() {
   revalidatePath("/progress");
   revalidatePath("/coach");
   revalidatePath("/exercises");
+  revalidatePath("/goals");
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {

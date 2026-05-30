@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GenerateRoutineButton } from "@/components/workout/generate-routine-button";
 import { HomeWorkoutLogger } from "@/components/workout/home-workout-logger";
 import { SessionLogger } from "@/components/workout/session-logger";
+import { BodyweightInput } from "@/components/workout/bodyweight-input";
 import { cn } from "@/lib/utils/cn";
 import type { GeneratedRoutine } from "@/types";
 
@@ -23,11 +24,15 @@ interface Props {
   routine: GeneratedRoutine | null;
   displayDate: string;
   hasActivePhase: boolean;
+  todayDate: string;
 }
 
-export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase }: Props) {
+export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase, todayDate }: Props) {
   const [mode, setMode] = useState<"gym" | "home">("gym");
   const badgeVariant = routine ? TYPE_BADGE[routine.workout_type] ?? "secondary" : "secondary";
+  const includedGoals = routine
+    ? Array.from(new Set(routine.exercises.flatMap((exercise) => exercise.goal_names ?? [])))
+    : [];
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
@@ -61,6 +66,8 @@ export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase }: Prop
         </Button>
       </div>
 
+      <BodyweightInput date={todayDate} />
+
       {mode === "home" ? (
         <HomeWorkoutLogger />
       ) : routine ? (
@@ -80,6 +87,11 @@ export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase }: Prop
                 {routine.exercises.length} exercises ·{" "}
                 {routine.exercises.reduce((s, e) => s + e.sets, 0)} working sets
               </p>
+              {includedGoals.length > 0 && (
+                <p className="mt-2 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                  Included for goal: {includedGoals.join(", ")}
+                </p>
+              )}
             </CardContent>
           </Card>
 
