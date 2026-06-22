@@ -1,12 +1,22 @@
 "use client";
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { CheckCircle, Circle, Loader2, ChevronDown, ChevronUp, Replace, Plus, Undo2 } from "lucide-react";
+import { useRef, useState, useCallback, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { CheckCircle, Circle, Loader2, ChevronDown, ChevronUp, Replace, Plus, Undo2, ArrowUpRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import type { Exercise, ExerciseSubstitution, GeneratedRoutine, ExercisePrescription } from "@/types";
 import { useRouter } from "next/navigation";
 import { formatWeightInput, parseWeightInput } from "@/lib/weights";
+
+export interface SessionSnapshot {
+  loggedSets: LoggedSet[];
+  plannedExercises: ExercisePrescription[];
+  skippedExerciseIds: Set<string>;
+  startTime: number;
+  savedSessionId: string | null;
+  workoutType: string;
+  sessionDate: string;
+}
 
 interface LoggedSet {
   exercise_id: string;
@@ -21,7 +31,7 @@ interface Props {
   routine: GeneratedRoutine;
 }
 
-export function SessionLogger({ routine }: Props) {
+export const SessionLogger = forwardRef<{ getSnapshot: () => SessionSnapshot }, Props>(function SessionLogger({ routine }, ref) {
   const router = useRouter();
   const [plannedExercises, setPlannedExercises] = useState(() => routine.exercises);
   const [loggedSets, setLoggedSets] = useState<LoggedSet[]>(() =>
@@ -37,6 +47,10 @@ export function SessionLogger({ routine }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exported, setExported] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().split("T")[0]);
   const sessionDateRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +62,18 @@ export function SessionLogger({ routine }: Props) {
   const [manualExerciseName, setManualExerciseName] = useState("");
   const [addingExercise, setAddingExercise] = useState(false);
   const [startTime] = useState(() => Date.now());
+
+  useImperativeHandle(ref, () => ({
+    getSnapshot: () => ({
+      loggedSets,
+      plannedExercises,
+      skippedExerciseIds,
+      startTime,
+      savedSessionId,
+      workoutType: routine.workout_type,
+      sessionDate,
+    }),
+  }));
 
   const activeLoggedSets = loggedSets.filter((set) => !skippedExerciseIds.has(set.exercise_id));
   const completedCount = activeLoggedSets.filter((s) => s.completed).length;
@@ -293,8 +319,9 @@ export function SessionLogger({ routine }: Props) {
       if (!response.ok) {
         throw new Error(data.error ?? "Failed to save session.");
       }
+      setSavedSessionId(data.session_id ?? null);
       setSaved(true);
-      setTimeout(() => router.push("/history"), 900);
+      setTimeout(() => router.push("/history"), 3000);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save session. Please try again.";
       console.error("[session-logger] save failed", err);
@@ -304,13 +331,89 @@ export function SessionLogger({ routine }: Props) {
     }
   };
 
+  const handleExport = useCallback(async () => {
+    if (!savedSessionId || exporting) return;
+    setExporting(true);
+    setExportError(null);
+
+    const bodyweightRaw = localStorage.getItem(`gym_bw_${sessionDate}`);
+    const bodyweight = bodyweightRaw ? parseFloat(bodyweightRaw) : undefined;
+
+    // Group completed sets by exercise
+    const exerciseMap = new Map<string, { exercise_name: string; sets: Array<{ exercise_name: string; set_number: number; reps?: number; weight_lbs?: number; bodyweight_lbs?: number }> }>();
+    for (const set of loggedSets.filter((s) => s.completed && !skippedExerciseIds.has(s.exercise_id))) {
+      const prescription = plannedExercises.find((ex) => ex.exercise_id === set.exercise_id);
+      const name = prescription?.exercise_name ?? set.exercise_id;
+      if (!exerciseMap.has(set.exercise_id)) {
+        exerciseMap.set(set.exercise_id, { exercise_name: name, sets: [] });
+      }
+      exerciseMap.get(set.exercise_id)!.sets.push({
+        exercise_name: name,
+        set_number: set.set_number,
+        reps: set.reps,
+        weight_lbs: set.weight_lbs,
+        bodyweight_lbs: set.bodyweight_lbs,
+      });
+    }
+
+    try {
+      const response = await fetch("/api/export/workout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: savedSessionId,
+          date: sessionDate,
+          workout_type: routine.workout_type,
+          duration_minutes: Math.max(Math.round((Date.now() - startTime) / 60000), 1),
+          bodyweight_lbs: bodyweight && bodyweight > 0 ? bodyweight : undefined,
+          exercises: Array.from(exerciseMap.entries()).map(([exercise_id, data]) => ({
+            exercise_id,
+            exercise_name: data.exercise_name,
+            sets: data.sets,
+          })),
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? "Export failed.");
+      }
+      setExported(true);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [savedSessionId, exporting, sessionDate, loggedSets, skippedExerciseIds, plannedExercises, routine.workout_type, startTime]);
+
   if (saved) {
     return (
       <Card className="border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-950/30">
-        <CardContent className="py-8 text-center">
-          <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-3" />
-          <p className="font-semibold text-green-800 dark:text-green-300 text-lg">Session logged!</p>
-          <p className="text-sm text-green-600 dark:text-green-400 mt-1">{completedCount} sets saved to your history.</p>
+        <CardContent className="py-8 text-center space-y-4">
+          <CheckCircle className="w-10 h-10 text-green-500 mx-auto" />
+          <div>
+            <p className="font-semibold text-green-800 dark:text-green-300 text-lg">Session logged!</p>
+            <p className="text-sm text-green-600 dark:text-green-400 mt-1">{completedCount} sets saved to your history.</p>
+          </div>
+          {!exported ? (
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={exporting}
+                className="gap-2 border-green-300 dark:border-green-800 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/40"
+              >
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUpRight className="w-4 h-4" />}
+                {exporting ? "Exporting..." : "Send to Progress App"}
+              </Button>
+              {exportError && <p className="text-xs text-red-600 dark:text-red-400">{exportError}</p>}
+            </div>
+          ) : (
+            <p className="text-sm font-medium text-green-700 dark:text-green-400">
+              Sent to Progress App
+            </p>
+          )}
+          <p className="text-xs text-green-500 dark:text-green-600">Redirecting to history…</p>
         </CardContent>
       </Card>
     );
@@ -558,7 +661,7 @@ export function SessionLogger({ routine }: Props) {
       </Card>
     </div>
   );
-}
+});
 
 function SetRow({
   set,

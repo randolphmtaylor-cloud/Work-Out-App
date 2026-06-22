@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Scale } from "lucide-react";
+import { Scale, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Props {
   date: string; // YYYY-MM-DD
+  getCopyExportPayload?: () => object | null;
 }
 
 function storageKey(date: string) {
   return `gym_bw_${date}`;
 }
 
-export function BodyweightInput({ date }: Props) {
+export function BodyweightInput({ date, getCopyExportPayload }: Props) {
   const [value, setValue] = useState("");
   const [saved, setSaved] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
   // Read from localStorage after mount (client only)
   useEffect(() => {
@@ -41,6 +43,20 @@ export function BodyweightInput({ date }: Props) {
     setSaved(num);
   }
 
+  async function handleCopyExport() {
+    if (!getCopyExportPayload) return;
+    const payload = getCopyExportPayload();
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2500);
+    } catch {
+      setCopyState("error");
+      setTimeout(() => setCopyState("idle"), 2500);
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -57,7 +73,7 @@ export function BodyweightInput({ date }: Props) {
             Today&apos;s Bodyweight: {saved} lbs
           </p>
         )}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <input
             type="number"
             min="1"
@@ -71,8 +87,31 @@ export function BodyweightInput({ date }: Props) {
           <Button size="sm" onClick={handleSave}>
             {saved !== null ? "Update" : "Save"}
           </Button>
+          {getCopyExportPayload && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCopyExport}
+              className="gap-1.5"
+            >
+              {copyState === "copied" ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-green-500" />
+                  <span className="text-green-600 dark:text-green-400">Workout export copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy Export
+                </>
+              )}
+            </Button>
+          )}
         </div>
         {error && <p className="text-xs text-red-500">{error}</p>}
+        {copyState === "error" && (
+          <p className="text-xs text-red-500">Could not copy to clipboard. Please try again.</p>
+        )}
       </CardContent>
     </Card>
   );

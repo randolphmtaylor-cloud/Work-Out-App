@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Clock, Home, Thermometer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GenerateRoutineButton } from "@/components/workout/generate-routine-button";
 import { HomeWorkoutLogger } from "@/components/workout/home-workout-logger";
 import { SessionLogger } from "@/components/workout/session-logger";
+import type { SessionSnapshot } from "@/components/workout/session-logger";
 import { BodyweightInput } from "@/components/workout/bodyweight-input";
 import { cn } from "@/lib/utils/cn";
 import type { GeneratedRoutine } from "@/types";
@@ -27,12 +28,100 @@ interface Props {
   todayDate: string;
 }
 
+function buildExportPayload(snapshot: SessionSnapshot, routine: GeneratedRoutine, bodyweight: number | null) {
+  const completedSets = snapshot.loggedSets.filter(
+    (s) => s.completed && !snapshot.skippedExerciseIds.has(s.exercise_id)
+  );
+
+  // Group sets by exercise
+  const exerciseMap = new Map<string, { name: string; sets: typeof completedSets }>();
+  for (const set of completedSets) {
+    const prescription = snapshot.plannedExercises.find((ex) => ex.exercise_id === set.exercise_id);
+    const name = prescription?.exercise_name ?? set.exercise_id;
+    if (!exerciseMap.has(set.exercise_id)) {
+      exerciseMap.set(set.exercise_id, { name, sets: [] });
+    }
+    exerciseMap.get(set.exercise_id)!.sets.push(set);
+  }
+
+  const exercises = Array.from(exerciseMap.values());
+  const totalSets = completedSets.length;
+  const totalReps = completedSets.reduce((sum, s) => sum + (s.reps ?? 0), 0);
+  const totalVolume = completedSets.reduce((sum, s) => {
+    const weight = s.weight_lbs ?? s.bodyweight_lbs ?? 0;
+    return sum + weight * (s.reps ?? 0);
+  }, 0);
+  const durationMinutes = Math.max(Math.round((Date.now() - snapshot.startTime) / 60000), 1);
+  const workoutCompleted = completedSets.length > 0;
+  const routineLabel = `${snapshot.workoutType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} Day`;
+
+  // Build markdown content block
+  let content = `## Fitness\n`;
+  content += workoutCompleted ? "Workout Completed\n" : "Workout In Progress\n";
+  content += `Routine: ${routineLabel}\n`;
+  if (bodyweight && bodyweight > 0) content += `Bodyweight: ${bodyweight} lbs\n`;
+  content += `Duration: ${durationMinutes} min\n`;
+
+  for (const ex of exercises) {
+    content += `\n${ex.name}\n`;
+    for (const s of ex.sets) {
+      const weight = s.weight_lbs != null ? `${s.weight_lbs}` : s.bodyweight_lbs != null ? `BW+${s.bodyweight_lbs}` : "BW";
+      content += `${weight} x ${s.reps ?? "?"}\n`;
+    }
+  }
+
+  if (totalVolume > 0) content += `\nTotal Volume: ${Math.round(totalVolume)} lbs`;
+
+  return {
+    type: "daily_activity_export",
+    source: "gym_sessions",
+    sourceRecordId: snapshot.savedSessionId ?? `workout-${snapshot.sessionDate}-${snapshot.workoutType}`,
+    date: snapshot.sessionDate,
+    title: workoutCompleted ? `Workout Completed - ${routineLabel}` : `Workout In Progress - ${routineLabel}`,
+    content,
+    metrics: {
+      workoutCompleted,
+      workoutDurationMinutes: durationMinutes,
+      workoutVolume: Math.round(totalVolume),
+      bodyweight: bodyweight && bodyweight > 0 ? bodyweight : undefined,
+      exercisesCompleted: exercises.length,
+      setsCompleted: totalSets,
+      repsCompleted: totalReps,
+    },
+  };
+}
+
 export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase, todayDate }: Props) {
   const [mode, setMode] = useState<"gym" | "home">("gym");
+  const sessionRef = useRef<{ getSnapshot: () => SessionSnapshot } | null>(null);
   const badgeVariant = routine ? TYPE_BADGE[routine.workout_type] ?? "secondary" : "secondary";
   const includedGoals = routine
     ? Array.from(new Set(routine.exercises.flatMap((exercise) => exercise.goal_names ?? [])))
     : [];
+
+  function getCopyExportPayload(): object | null {
+    const storedBw = localStorage.getItem(`gym_bw_${todayDate}`);
+    const bodyweight = storedBw ? parseFloat(storedBw) : null;
+
+    if (!routine || !sessionRef.current) {
+      // No routine — export just bodyweight if available
+      if (bodyweight && bodyweight > 0) {
+        return {
+          type: "daily_activity_export",
+          source: "gym_sessions",
+          sourceRecordId: `bodyweight-${todayDate}`,
+          date: todayDate,
+          title: "Bodyweight Logged",
+          content: `## Fitness\nBodyweight: ${bodyweight} lbs`,
+          metrics: { bodyweight },
+        };
+      }
+      return null;
+    }
+
+    const snapshot = sessionRef.current.getSnapshot();
+    return buildExportPayload(snapshot, routine, bodyweight);
+  }
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-5">
@@ -66,7 +155,7 @@ export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase, todayD
         </Button>
       </div>
 
-      <BodyweightInput date={todayDate} />
+      <BodyweightInput date={todayDate} getCopyExportPayload={getCopyExportPayload} />
 
       {mode === "home" ? (
         <HomeWorkoutLogger />
@@ -109,7 +198,7 @@ export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase, todayD
             </CardContent>
           </Card>
 
-          <SessionLogger routine={routine} />
+          <SessionLogger ref={sessionRef} routine={routine} />
         </>
       ) : (
         <Card>
