@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Clock, Home, Thermometer } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Clock, Home, Pause, Play, RotateCcw, Thermometer, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,6 +91,71 @@ function buildExportPayload(snapshot: SessionSnapshot, routine: GeneratedRoutine
   };
 }
 
+function WorkoutTimer() {
+  const [state, setState] = useState<"idle" | "running" | "paused">("idle");
+  const [elapsed, setElapsed] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const start = () => {
+    setState("running");
+    intervalRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+  };
+
+  const pause = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setState("paused");
+  };
+
+  const resume = () => {
+    setState("running");
+    intervalRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+  };
+
+  const reset = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setState("idle");
+    setElapsed(0);
+  };
+
+  const mm = Math.floor(elapsed / 60).toString().padStart(2, "0");
+  const ss = (elapsed % 60).toString().padStart(2, "0");
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+      <Timer className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+      <span className="min-w-[3.5rem] font-mono text-sm tabular-nums text-zinc-700 dark:text-zinc-300">
+        {mm}:{ss}
+      </span>
+      {state === "idle" && (
+        <button onClick={start} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950">
+          <Play className="h-3 w-3" /> Start
+        </button>
+      )}
+      {state === "running" && (
+        <button onClick={pause} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950">
+          <Pause className="h-3 w-3" /> Pause
+        </button>
+      )}
+      {state === "paused" && (
+        <button onClick={resume} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950">
+          <Play className="h-3 w-3" /> Resume
+        </button>
+      )}
+      {state !== "idle" && (
+        <button onClick={reset} className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+          <RotateCcw className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase, todayDate }: Props) {
   const [mode, setMode] = useState<"gym" | "home">("gym");
   const sessionRef = useRef<{ getSnapshot: () => SessionSnapshot } | null>(null);
@@ -154,6 +219,8 @@ export function TodayWorkoutPanel({ routine, displayDate, hasActivePhase, todayD
           Home Workout
         </Button>
       </div>
+
+      <WorkoutTimer />
 
       <BodyweightInput date={todayDate} getCopyExportPayload={getCopyExportPayload} />
 

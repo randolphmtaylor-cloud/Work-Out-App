@@ -73,11 +73,13 @@ const WARMUP_TEXT: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------
 
-/** Next day type based on the actual session history (not just count) */
+/** Next day type based on the actual session history (not just count).
+ *  Home workouts are intentionally excluded so they don't shift the gym rotation. */
 function nextDayType(recentSessions: WorkoutSession[]): WorkoutTag {
-  // Look for the last logged day type embedded in session notes or use round-robin
-  // We infer day type from which muscle groups were trained in the last session
-  const last = recentSessions[0];
+  // Only gym/planned sessions count toward the push→pull→legs rotation.
+  // Home workouts are logged as history but must not advance the planned rotation.
+  const gymSessions = recentSessions.filter((s) => s.workout_type !== "home");
+  const last = gymSessions[0];
   if (!last) return "push";
 
   // Try to infer from session notes
@@ -90,8 +92,8 @@ function nextDayType(recentSessions: WorkoutSession[]): WorkoutTag {
     }
   }
 
-  // Round-robin based on total session count mod 3
-  const idx = recentSessions.length % DAY_TYPES.length;
+  // Round-robin based on gym-session count mod 3
+  const idx = gymSessions.length % DAY_TYPES.length;
   return DAY_TYPES[idx];
 }
 
@@ -200,8 +202,20 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
     library.find((exercise) => exercise.tags.includes("core") && goalsForExercise(exercise).length > 0 && !lastSessionExercises.has(exercise.id)) ??
     library.find((exercise) => exercise.tags.includes("core") && goalsForExercise(exercise).length > 0);
 
-  // Filter to exercises that match today's target muscles
+  // Filter to exercises that match today's workout type.
+  // When an exercise carries an explicit day tag (legs/lower/push/pull), that tag
+  // takes precedence over muscle-group overlap — this prevents a Legs exercise that
+  // happens to train the back (e.g. Trap Bar Deadlift) from appearing on Pull Day.
   const candidates = library.filter((ex) => {
+    const hasLegTag  = ex.tags.some((t) => t === "legs" || t === "lower");
+    const hasPushTag = ex.tags.includes("push");
+    const hasPullTag = ex.tags.includes("pull");
+
+    if (hasLegTag && !hasPushTag && !hasPullTag) return dayType === "legs";
+    if (hasPushTag && !hasLegTag && !hasPullTag) return dayType === "push";
+    if (hasPullTag && !hasLegTag && !hasPushTag) return dayType === "pull";
+
+    // Fallback: match by muscle groups for exercises without explicit day tags
     const muscles = new Set<string>(ex.muscle_groups);
     return [...targetMuscles].some((m) => muscles.has(m));
   });

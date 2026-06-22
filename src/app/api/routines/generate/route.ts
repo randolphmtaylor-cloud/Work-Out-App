@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { buildDefaultPhase, generateRoutine } from "@/lib/routine-engine";
 import { createDefaultActivePhase, getActivePhase, getRecentSessions, getAllSets, saveGeneratedRoutine, getExercises, getEquipment, getGoals } from "@/lib/data";
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    revalidatePath("/today");
     return NextResponse.json(routine);
   } catch (error) {
     console.error("[routines/generate] unexpected generation failure", {
