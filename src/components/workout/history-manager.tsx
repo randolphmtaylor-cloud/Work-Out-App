@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, Clock, Dumbbell, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Calendar, Check, Clipboard, Clock, Dumbbell, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDisplay } from "@/lib/utils/dates";
+import { buildProgressExportFromHistory } from "@/lib/exports/progress-gym";
 import { formatWeightInput, parseWeightInput } from "@/lib/weights";
 import type { Exercise, WorkoutSession, WorkoutSet } from "@/types";
 
@@ -121,6 +122,7 @@ export function HistoryManager({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     setSessions(initialSessions);
@@ -246,6 +248,18 @@ export function HistoryManager({
       setError(err instanceof Error ? err.message : "Workout delete failed.");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const copyExport = async (session: SessionWithSets) => {
+    const exMap = new Map(exercises.map((e) => [e.id, e.name]));
+    const payload = buildProgressExportFromHistory(session, session.sets, exMap);
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setCopiedId(session.id);
+      setTimeout(() => setCopiedId(null), 2500);
+    } catch {
+      setError("Could not copy to clipboard.");
     }
   };
 
@@ -420,6 +434,10 @@ export function HistoryManager({
                           </span>
                         )}
                         <div className="flex flex-wrap justify-end gap-2">
+                          <Button type="button" size="sm" variant="outline" onClick={() => copyExport(session)} disabled={copiedId === session.id}>
+                            {copiedId === session.id ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Clipboard className="h-3.5 w-3.5" />}
+                            {copiedId === session.id ? "Copied" : "Copy Export"}
+                          </Button>
                           <Button type="button" size="sm" variant="outline" onClick={() => startEdit(session)} disabled={Boolean(loadingEditId) || saving || deletingId === session.id}>
                             {loadingEditId === session.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                             Edit
