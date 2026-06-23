@@ -11,6 +11,7 @@ import { SessionLogger } from "@/components/workout/session-logger";
 import type { SessionSnapshot } from "@/components/workout/session-logger";
 import { BodyweightInput } from "@/components/workout/bodyweight-input";
 import { cn } from "@/lib/utils/cn";
+import { buildProgressGymImportPayload } from "@/lib/exports/progress-gym";
 import type { GeneratedRoutine } from "@/types";
 
 const TYPE_BADGE: Record<string, "push" | "pull" | "legs" | "core" | "home" | "secondary"> = {
@@ -26,55 +27,6 @@ interface Props {
   displayDate: string;
   hasActivePhase: boolean;
   todayDate: string;
-}
-
-export function buildProgressGymImportPayload(
-  snapshot: SessionSnapshot,
-  routine: GeneratedRoutine,
-  bodyweight: number | null
-) {
-  const completedSets = snapshot.loggedSets.filter(
-    (s) => s.completed && !snapshot.skippedExerciseIds.has(s.exercise_id)
-  );
-
-  const exerciseMap = new Map<string, { name: string; sets: typeof completedSets }>();
-  for (const set of completedSets) {
-    const prescription = snapshot.plannedExercises.find((ex) => ex.exercise_id === set.exercise_id);
-    const name = prescription?.exercise_name ?? set.exercise_id;
-    if (!exerciseMap.has(set.exercise_id)) {
-      exerciseMap.set(set.exercise_id, { name, sets: [] });
-    }
-    exerciseMap.get(set.exercise_id)!.sets.push(set);
-  }
-
-  const durationMinutes = Math.max(Math.round((Date.now() - snapshot.startTime) / 60000), 1);
-  const routineLabel = `${snapshot.workoutType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} Day`;
-
-  const exercises = Array.from(exerciseMap.values()).map((ex) => ({
-    name: ex.name,
-    sets: ex.sets
-      .filter((s) => s.reps != null)
-      .map((s) => {
-        const entry: { reps: number; weight?: number } = { reps: s.reps! };
-        if (s.weight_lbs != null) {
-          entry.weight = s.weight_lbs;
-        } else if (s.bodyweight_lbs != null) {
-          entry.weight = s.bodyweight_lbs;
-        } else if (bodyweight && bodyweight > 0) {
-          entry.weight = bodyweight;
-        }
-        return entry;
-      }),
-  }));
-
-  const payload: Record<string, unknown> = {
-    workoutName: routineLabel,
-    date: snapshot.sessionDate,
-    durationMinutes,
-    exercises,
-  };
-  if (bodyweight && bodyweight > 0) payload.bodyweight = bodyweight;
-  return payload;
 }
 
 function WorkoutTimer() {
