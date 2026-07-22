@@ -72,7 +72,9 @@ function writeIcns(path, images) {
 
 await writePng(join(publicDir, "icon-192.png"), 192);
 await writePng(join(publicDir, "icon-512.png"), 512);
+await writePng(join(publicDir, "icon-1024.png"), 1024);
 await writePng(join(publicDir, "apple-touch-icon.png"), 180);
+await writePng(join(publicDir, "apple-touch-icon-512.png"), 512);
 
 await writePng(join(tauriIconsDir, "32x32.png"), 32);
 await writePng(join(tauriIconsDir, "128x128.png"), 128);
