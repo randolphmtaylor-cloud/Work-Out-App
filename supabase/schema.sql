@@ -69,6 +69,18 @@ CREATE TABLE IF NOT EXISTS equipment (
   aliases          TEXT[]      NOT NULL DEFAULT '{}',
   category         equipment_category NOT NULL,
   notes            TEXT,
+  primary_category TEXT,
+  secondary_category TEXT,
+  primary_muscles  TEXT[]      NOT NULL DEFAULT '{}',
+  secondary_muscles TEXT[]     NOT NULL DEFAULT '{}',
+  movement_pattern TEXT,
+  exercise_type    TEXT CHECK (exercise_type IS NULL OR exercise_type IN ('compound','isolation')),
+  environments     TEXT[]      NOT NULL DEFAULT '{}',
+  laterality       TEXT,
+  tracking_type    TEXT,
+  difficulty       TEXT,
+  substitution_ids TEXT[]      NOT NULL DEFAULT '{}',
+  cautions         TEXT[]      NOT NULL DEFAULT '{}',
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -133,7 +145,7 @@ CREATE TABLE IF NOT EXISTS training_phases (
   description      TEXT        NOT NULL DEFAULT '',
   is_active        BOOLEAN     NOT NULL DEFAULT FALSE,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT training_phases_rep_range_check CHECK (rep_range_low <= rep_range_high),
+  CONSTRAINT training_phases_rep_range_check CHECK (rep_range_low <= rep_range_high AND rep_range_high <= 10),
   CONSTRAINT training_phases_date_range_check CHECK (start_date <= end_date)
 );
 

@@ -83,23 +83,30 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 z-50">
-      <div className="flex items-center justify-around px-2 py-2">
-        {[...NAV_ITEMS.slice(0, 5), { href: "/login", label: "Account", icon: UserRound }].map(({ href, label, icon: Icon }) => {
+    <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-200 bg-white/95 backdrop-blur md:hidden dark:border-zinc-800 dark:bg-zinc-900/95">
+      <div className="grid grid-cols-6 gap-0.5 px-1 pt-1.5 pb-[calc(.375rem+env(safe-area-inset-bottom))]">
+        {[
+          { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+          { href: "/today", label: "Workout", icon: Dumbbell },
+          { href: "/goals", label: "Goals", icon: Target },
+          { href: "/history", label: "History", icon: History },
+          { href: "/exercises", label: "Library", icon: Library },
+          { href: "/login", label: "Account", icon: UserRound },
+        ].map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-xs transition-colors",
+                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 text-[clamp(.625rem,2.5vw,.75rem)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                 active
                   ? "text-indigo-600 dark:text-indigo-400"
                   : "text-zinc-500 dark:text-zinc-400"
               )}
             >
-              <Icon className="w-5 h-5" />
-              <span className="truncate max-w-[48px] text-center leading-tight">{label.split("'")[0]}</span>
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              <span className="w-full text-center leading-tight">{label}</span>
             </Link>
           );
         })}

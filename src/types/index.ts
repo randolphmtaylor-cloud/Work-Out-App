@@ -79,6 +79,18 @@ export interface Exercise {
   equipment?: Equipment;
   muscle_groups: MuscleGroup[];
   tags: WorkoutTag[];
+  primary_category?: MuscleGroup;
+  secondary_category?: MuscleGroup;
+  primary_muscles?: MuscleGroup[];
+  secondary_muscles?: MuscleGroup[];
+  movement_pattern?: string;
+  exercise_type?: "compound" | "isolation";
+  environments?: Array<"gym" | "home">;
+  laterality?: "bilateral" | "unilateral" | "alternating" | "timed" | "distance";
+  tracking_type?: "weight_reps" | "reps" | "duration" | "distance";
+  difficulty?: "beginner" | "intermediate" | "advanced";
+  substitution_ids?: string[];
+  cautions?: string[];
   notes?: string;
   created_at: string;
 }
@@ -112,6 +124,13 @@ export interface TrainingPhase {
   rep_range_high: number;
   description: string;
   is_active: boolean;
+  metadata?: {
+    retained_exercise_ids?: string[];
+    new_exercise_ids?: string[];
+    removed_exercise_ids?: string[];
+    generation_version?: string;
+    generated_at?: string;
+  };
   created_at: string;
 }
 
@@ -198,6 +217,11 @@ export interface ExercisePrescription {
   sets: number;
   reps_low: number;
   reps_high: number;
+  tracking_type?: "weight_reps" | "reps" | "duration" | "distance";
+  target_duration_seconds?: number;
+  target_distance?: string;
+  superset_group?: string;
+  superset_position?: 1 | 2;
   rest_seconds: number;
   notes?: string;
   goal_ids?: string[];

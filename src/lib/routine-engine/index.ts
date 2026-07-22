@@ -36,7 +36,7 @@ const SET_TIME: Record<string, number> = {
 const PHASE_CONFIGS = {
   accumulation: {
     compound_sets: 3, isolation_sets: 3,
-    reps_low: 8,  reps_high: 12,
+    reps_low: 6,  reps_high: 10,
     compound_rest: 75, isolation_rest: 60,
     max_exercises: 5,
   },
@@ -48,25 +48,23 @@ const PHASE_CONFIGS = {
   },
   density: {
     compound_sets: 3, isolation_sets: 3,
-    reps_low: 10, reps_high: 15,
+    reps_low: 8, reps_high: 10,
     compound_rest: 60, isolation_rest: 45,
     max_exercises: 5,
   },
 } as const;
 
 // ---- Day type rotation ----
-const DAY_TYPES: WorkoutTag[] = ["push", "pull", "legs"];
+const DAY_TYPES: WorkoutTag[] = ["upper", "lower"];
 
 const TARGET_MUSCLES: Record<string, string[]> = {
-  push:  ["chest", "shoulders", "triceps"],
-  pull:  ["back", "biceps"],
-  legs:  ["quads", "hamstrings", "glutes"],
+  upper: ["chest", "shoulders", "triceps", "back", "biceps"],
+  lower: ["quads", "hamstrings", "glutes", "core"],
 };
 
 const WARMUP_TEXT: Record<string, string> = {
-  push: "3 min: arm circles, shoulder rolls, band pull-aparts, 1 feeder set on the first machine",
-  pull: "3 min: lat hang, scapular pull-ups, band face-pulls, shoulder CARs",
-  legs: "3 min: leg swings, hip circles, bodyweight squats, quad + hip flexor stretch",
+  upper: "3 min: arm circles, shoulder rolls, band pull-aparts, and a feeder set for the first push/pull pair",
+  lower: "3 min: leg swings, hip circles, bodyweight squats, then a feeder set for the first compound",
 };
 
 // ---------------------------------------------------------------
@@ -80,7 +78,7 @@ function nextDayType(recentSessions: WorkoutSession[]): WorkoutTag {
   // Home workouts are logged as history but must not advance the planned rotation.
   const gymSessions = recentSessions.filter((s) => s.workout_type !== "home");
   const last = gymSessions[0];
-  if (!last) return "push";
+  if (!last) return "upper";
 
   // Try to infer from session notes
   if (last.notes) {
@@ -190,9 +188,14 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   const equipmentLibrary = input.equipment?.length ? input.equipment : MOCK_EQUIPMENT;
   const cfg = PHASE_CONFIGS[phase.phase_type] ?? PHASE_CONFIGS.accumulation;
 
-  const dayType = input.workoutType ?? nextDayType(recentSessions);
+  const requestedType = input.workoutType;
+  const dayType: WorkoutTag = requestedType === "push" || requestedType === "pull" || requestedType === "upper"
+    ? "upper"
+    : requestedType === "legs" || requestedType === "core" || requestedType === "lower"
+      ? "lower"
+      : nextDayType(recentSessions);
   const activeGoals = (input.activeGoals ?? []).filter((goal) => goal.status === "active");
-  const targetMuscles = new Set(TARGET_MUSCLES[dayType] ?? TARGET_MUSCLES.push);
+  const targetMuscles = new Set(TARGET_MUSCLES[dayType] ?? TARGET_MUSCLES.upper);
   const recentMuscles = recentlyTrainedMuscles(recentSessions, allSets);
   const lastSessionExercises = exercisesInLastSession(recentSessions, allSets);
   const freq = exerciseFrequency(allSets);
@@ -211,9 +214,8 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
     const hasPushTag = ex.tags.includes("push");
     const hasPullTag = ex.tags.includes("pull");
 
-    if (hasLegTag && !hasPushTag && !hasPullTag) return dayType === "legs";
-    if (hasPushTag && !hasLegTag && !hasPullTag) return dayType === "push";
-    if (hasPullTag && !hasLegTag && !hasPushTag) return dayType === "pull";
+    if (dayType === "lower") return hasLegTag || ex.tags.includes("core");
+    if (dayType === "upper") return (hasPushTag || hasPullTag) && !hasLegTag;
 
     // Fallback: match by muscle groups for exercises without explicit day tags
     const muscles = new Set<string>(ex.muscle_groups);
@@ -256,9 +258,10 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
   const prescriptions: ExercisePrescription[] = [];
   let compoundAdded = 0;
   let isolationAdded = 0;
+  const upperRoles = new Set<string>();
 
   // Target: 2-3 compounds, 1-2 isolations, 1 core
-  const maxCompound = dayType === "legs" ? 2 : 2;
+  const maxCompound = 2;
   const maxIsolation = cfg.max_exercises - maxCompound - 1; // -1 for core
 
   for (const { ex } of scored) {
@@ -267,6 +270,13 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
     const isCompound = ex.tags.includes("compound");
     const isCore = ex.tags.includes("core");
     if (isCore) continue; // added at end
+
+    let upperRole: string | undefined;
+    if (dayType === "upper") {
+      const direction = ex.tags.includes("push") ? "push" : ex.tags.includes("pull") ? "pull" : "other";
+      upperRole = `${direction}-${isCompound ? "compound" : "isolation"}`;
+      if (direction === "other" || upperRoles.has(upperRole)) continue;
+    }
 
     if (isCompound && compoundAdded >= maxCompound) continue;
     if (!isCompound && isolationAdded >= maxIsolation) continue;
@@ -296,14 +306,16 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
       exercise_name: ex.name,
       equipment_name: equipment?.name,
       sets,
-      reps_low: cfg.reps_low,
-      reps_high: cfg.reps_high,
+      reps_low: isCompound && phase.phase_type === "intensification" ? 4 : isCompound ? cfg.reps_low : 8,
+      reps_high: Math.min(10, cfg.reps_high),
+      tracking_type: ex.tracking_type ?? (equipment ? "weight_reps" : "reps"),
       rest_seconds: isCompound ? cfg.compound_rest : cfg.isolation_rest,
       notes: note,
       goal_ids: matchedGoals.map((goal) => goal.id),
       goal_names: matchedGoals.map((goal) => goal.name),
       substitutions: getSubstitutions(ex, library, equipmentLibrary),
     });
+    if (upperRole) upperRoles.add(upperRole);
 
     minutesUsed += mins;
     if (isCompound) compoundAdded++;
@@ -326,8 +338,10 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
       exercise_name: coreChoice.name,
       equipment_name: coreEquipment?.name,
       sets: 3,
-      reps_low: 8,
-      reps_high: 12,
+      reps_low: coreChoice.tracking_type === "duration" || coreChoice.laterality === "timed" ? 0 : 8,
+      reps_high: coreChoice.tracking_type === "duration" || coreChoice.laterality === "timed" ? 0 : 10,
+      tracking_type: coreChoice.tracking_type ?? "reps",
+      target_duration_seconds: coreChoice.tracking_type === "duration" || coreChoice.laterality === "timed" ? 30 : undefined,
       rest_seconds: 45,
       goal_ids: matchedGoals.map((goal) => goal.id),
       goal_names: matchedGoals.map((goal) => goal.name),
@@ -336,6 +350,20 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
     minutesUsed += exerciseMinutes(coreChoice, 3);
   }
 
+  if (dayType === "upper") {
+    const push = prescriptions.filter((item) => library.find((ex) => ex.id === item.exercise_id)?.tags.includes("push"));
+    const pull = prescriptions.filter((item) => library.find((ex) => ex.id === item.exercise_id)?.tags.includes("pull"));
+    const pairCount = Math.min(push.length, pull.length);
+    for (let index = 0; index < pairCount; index++) {
+      const group = String.fromCharCode(65 + index);
+      push[index].superset_group = group;
+      push[index].superset_position = 1;
+      pull[index].superset_group = group;
+      pull[index].superset_position = 2;
+    }
+  }
+
+  validateRoutinePrescriptions(prescriptions);
   const estimatedMinutes = WARMUP_MINUTES + minutesUsed;
 
   return {
@@ -346,7 +374,7 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
     date: new Date().toISOString().split("T")[0],
     workout_type: dayType,
     warmup: {
-      description: WARMUP_TEXT[dayType] ?? WARMUP_TEXT.push,
+      description: WARMUP_TEXT[dayType] ?? WARMUP_TEXT.upper,
       duration_minutes: WARMUP_MINUTES,
     },
     exercises: prescriptions,
@@ -354,6 +382,15 @@ export function generateRoutine(input: RoutineGenerationInput): GeneratedRoutine
     was_completed: false,
     created_at: new Date().toISOString(),
   };
+}
+
+export function validateRoutinePrescriptions(prescriptions: ExercisePrescription[]): void {
+  for (const prescription of prescriptions) {
+    const durationBased = prescription.tracking_type === "duration" || prescription.tracking_type === "distance";
+    if (!durationBased && (prescription.reps_low < 1 || prescription.reps_high > 10 || prescription.reps_low > prescription.reps_high)) {
+      throw new Error(`Invalid prescription for ${prescription.exercise_name}: rep targets must be between 1 and 10.`);
+    }
+  }
 }
 
 function getSubstitutions(
@@ -380,9 +417,9 @@ export function buildNextPhase(current: TrainingPhase): TrainingPhase {
     density:         "Density",
   };
   const DESCS: Record<string, string> = {
-    accumulation:    "Hypertrophy block — moderate loads, 8–12 reps, volume building. Focus on feeling each rep.",
+    accumulation:    "Volume block — moderate loads, 6–10 reps, with new accessory pairings and controlled tempo.",
     intensification: "Strength bias — heavier loads, 5–8 reps, compound priority. Push estimated 1RM up.",
-    density:         "Efficiency block — higher reps, shorter rest, max work per minute. Progress check.",
+    density:         "Efficiency block — 8–10 reps, shorter rest, refreshed variations, and more work per minute.",
   };
 
   const start = new Date();
@@ -420,7 +457,7 @@ export function buildDefaultPhase(userId: string): TrainingPhase {
     end_date: end.toISOString().split("T")[0],
     rep_range_low: PHASE_CONFIGS.accumulation.reps_low,
     rep_range_high: PHASE_CONFIGS.accumulation.reps_high,
-    description: "Starter hypertrophy block — moderate loads, 8–12 reps, volume building. Focus on feeling each rep.",
+    description: "Starter volume block — moderate loads, 6–10 reps, upper supersets, and planned lower-body core work.",
     is_active: true,
     created_at: new Date().toISOString(),
   };

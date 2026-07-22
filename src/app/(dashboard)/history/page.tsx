@@ -20,7 +20,7 @@ export default async function HistoryPage() {
   });
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 px-4 pb-8 pt-5 sm:px-6 sm:pt-6">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">History</h1>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{sessions.length} sessions recorded</p>

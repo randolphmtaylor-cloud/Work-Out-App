@@ -9,6 +9,7 @@ import {
   getRecentSessions,
   getLatestSummary,
   getTodayRoutine,
+  getPhases,
 } from "@/lib/data";
 import { computeAnalytics } from "@/lib/analytics";
 import { getAuthStatus } from "@/lib/auth/user";
@@ -20,15 +21,17 @@ export default async function DashboardPage() {
   let sessions: WorkoutSession[] = [];
   let summary: WeeklySummary | null = null;
   let todayRoutine: GeneratedRoutine | null = null;
+  let phases: TrainingPhase[] = [];
   const auth = await getAuthStatus();
 
   try {
     if (auth.userId) {
-      [phase, sessions, summary, todayRoutine] = await Promise.all([
+      [phase, sessions, summary, todayRoutine, phases] = await Promise.all([
         getActivePhase(auth.userId),
         getRecentSessions(auth.userId, 30),
         getLatestSummary(auth.userId),
         getTodayRoutine(auth.userId),
+        getPhases(auth.userId),
       ]);
     }
   } catch (error) {
@@ -114,7 +117,7 @@ export default async function DashboardPage() {
             <CardTitle className="text-base">Current Phase</CardTitle>
           </CardHeader>
           <CardContent>
-            <PhasePanel phase={phase} />
+            <PhasePanel phase={phase} phases={phases} />
           </CardContent>
         </Card>
       )}

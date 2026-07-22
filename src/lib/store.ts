@@ -329,6 +329,20 @@ export function storeAdvancePhase(next: TrainingPhase): void {
   store.phases.push(next);
 }
 
+export function storeActivatePhase(userId: string, phaseId: string): TrainingPhase | null {
+  const target = store.phases.find((phase) => phase.user_id === userId && phase.id === phaseId);
+  if (!target) return null;
+  store.phases = store.phases.map((phase) => ({ ...phase, is_active: phase.user_id === userId ? phase.id === phaseId : phase.is_active }));
+  return store.phases.find((phase) => phase.id === phaseId) ?? null;
+}
+
+export function storeUpdatePhase(userId: string, phaseId: string, patch: Partial<Pick<TrainingPhase, "name" | "description" | "end_date" | "rep_range_low" | "rep_range_high">>): TrainingPhase | null {
+  const index = store.phases.findIndex((phase) => phase.user_id === userId && phase.id === phaseId);
+  if (index < 0) return null;
+  store.phases[index] = { ...store.phases[index], ...patch };
+  return store.phases[index];
+}
+
 // ---- Routines ----
 export function storeTodayRoutine(userId: string): GeneratedRoutine | null {
   const today = new Date().toISOString().split("T")[0];

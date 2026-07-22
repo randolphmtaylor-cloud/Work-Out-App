@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useCallback, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
-import { CheckCircle, Circle, Loader2, ChevronDown, ChevronUp, Replace, Plus, Undo2, ArrowUpRight } from "lucide-react";
+import { CheckCircle, Circle, Loader2, ChevronDown, ChevronUp, Replace, Plus, Undo2, ArrowUpRight, ArrowUp, ArrowDown, Unlink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
@@ -149,7 +149,7 @@ export const SessionLogger = forwardRef<{ getSnapshot: () => SessionSnapshot }, 
       exercise_name: exercise.name,
       sets: 3,
       reps_low: 8,
-      reps_high: 12,
+      reps_high: 10,
       rest_seconds: 60,
       notes: "Manually added",
     };
@@ -232,6 +232,23 @@ export const SessionLogger = forwardRef<{ getSnapshot: () => SessionSnapshot }, 
       return next;
     });
     setExpandedEx(exerciseId);
+  }, []);
+
+  const moveExercise = useCallback((exerciseId: string, direction: -1 | 1) => {
+    setPlannedExercises((current) => {
+      const index = current.findIndex((exercise) => exercise.exercise_id === exerciseId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }, []);
+
+  const unpairExercise = useCallback((exerciseId: string) => {
+    setPlannedExercises((current) => current.map((exercise) => exercise.exercise_id === exerciseId
+      ? { ...exercise, superset_group: undefined, superset_position: undefined }
+      : exercise));
   }, []);
 
   const replaceExercise = useCallback(
@@ -527,6 +544,11 @@ export const SessionLogger = forwardRef<{ getSnapshot: () => SessionSnapshot }, 
                     {idx + 1}
                   </span>
                   <div>
+                    {ex.superset_group && (
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                        Superset {ex.superset_group} · exercise {ex.superset_position}
+                      </p>
+                    )}
                     <p className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">{ex.exercise_name}</p>
                     {ex.equipment_name && (
                       <p className="text-xs text-zinc-400 dark:text-zinc-500">{ex.equipment_name}</p>
@@ -539,6 +561,11 @@ export const SessionLogger = forwardRef<{ getSnapshot: () => SessionSnapshot }, 
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="hidden items-center sm:flex">
+                    <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => moveExercise(ex.exercise_id, -1)} disabled={idx === 0} aria-label={`Move ${ex.exercise_name} up`}><ArrowUp className="h-3.5 w-3.5" /></Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => moveExercise(ex.exercise_id, 1)} disabled={idx === plannedExercises.length - 1} aria-label={`Move ${ex.exercise_name} down`}><ArrowDown className="h-3.5 w-3.5" /></Button>
+                    {ex.superset_group && <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => unpairExercise(ex.exercise_id)} aria-label={`Unpair ${ex.exercise_name}`}><Unlink className="h-3.5 w-3.5" /></Button>}
+                  </div>
                   <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
                     {isSkipped ? "Skipped" : `${ex.sets} × ${ex.reps_low}–${ex.reps_high}`}
                   </span>

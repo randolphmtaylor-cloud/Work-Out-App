@@ -32,16 +32,33 @@ interface HomeExerciseLog extends HomeExerciseTemplate {
 
 const SUGGESTED_HOME_EXERCISES: HomeExerciseTemplate[] = [
   { name: "Run", kind: "run", notes: "Easy pace or intervals" },
-  { name: "Push Ups", kind: "bodyweight", sets: 3, reps: 12 },
-  { name: "Squats", kind: "bodyweight", sets: 3, reps: 15 },
+  { name: "Push Ups", kind: "bodyweight", sets: 3, reps: 10 },
+  { name: "Squats", kind: "bodyweight", sets: 3, reps: 10 },
   { name: "Romanian Dead Lifts", kind: "weighted", sets: 3, reps: 10 },
-  { name: "Sit Ups", kind: "bodyweight", sets: 3, reps: 15 },
-  { name: "Planks", kind: "bodyweight", sets: 3, reps: 1, notes: "Log hold time in notes" },
+  { name: "Dead Bug", kind: "bodyweight", sets: 3, reps: 8, notes: "Slow alternating reps per side" },
+  { name: "Side Plank", kind: "bodyweight", sets: 3, reps: 1, notes: "30 seconds per side; log hold time in notes" },
+  { name: "Reverse Crunch", kind: "bodyweight", sets: 3, reps: 10 },
+  { name: "Bird Dog", kind: "bodyweight", sets: 3, reps: 8, notes: "Controlled reps per side" },
+  { name: "Hollow-Body Hold", kind: "bodyweight", sets: 3, reps: 1, notes: "20–30 second hold" },
+  { name: "Plank", kind: "bodyweight", sets: 3, reps: 1, notes: "30–45 second hold" },
   { name: "Lunges", kind: "bodyweight", sets: 3, reps: 10 },
   { name: "Burpees", kind: "bodyweight", sets: 3, reps: 10 },
   { name: "Pull Ups / Rows", kind: "bodyweight", sets: 3, reps: 6 },
-  { name: "Jumping Jacks", kind: "bodyweight", sets: 3, reps: 30 },
+  { name: "Jumping Jacks", kind: "bodyweight", sets: 3, reps: 10, notes: "Use timed intervals for longer bouts" },
 ];
+
+const CORE_ROTATIONS = [
+  ["Dead Bug", "Side Plank"],
+  ["Bird Dog", "Reverse Crunch"],
+  ["Plank", "Hollow-Body Hold"],
+];
+
+function weeklyHomeExercises() {
+  const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  const selectedCore = new Set(CORE_ROTATIONS[week % CORE_ROTATIONS.length]);
+  const allCore = new Set(CORE_ROTATIONS.flat());
+  return SUGGESTED_HOME_EXERCISES.filter((exercise) => !allCore.has(exercise.name) || selectedCore.has(exercise.name));
+}
 
 function toLog(template: HomeExerciseTemplate): HomeExerciseLog {
   return {
@@ -62,6 +79,11 @@ function numberOrUndefined(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function prescribedRepsOrUndefined(value: string) {
+  const parsed = numberOrUndefined(value);
+  return parsed === undefined ? undefined : Math.min(parsed, 10);
+}
+
 function buildSetNotes(exercise: HomeExerciseLog) {
   const parts = [
     exercise.kind === "run" && exercise.distanceInput ? `Distance: ${exercise.distanceInput}` : undefined,
@@ -75,7 +97,7 @@ function buildSetNotes(exercise: HomeExerciseLog) {
 export function HomeWorkoutLogger() {
   const router = useRouter();
   const [exercises, setExercises] = useState<HomeExerciseLog[]>(() =>
-    SUGGESTED_HOME_EXERCISES.map(toLog)
+    weeklyHomeExercises().map(toLog)
   );
   const [selectedTemplate, setSelectedTemplate] = useState(SUGGESTED_HOME_EXERCISES[0].name);
   const [customName, setCustomName] = useState("");
@@ -138,7 +160,7 @@ export function HomeWorkoutLogger() {
       return Array.from({ length: setCount }, (_, index) => ({
         exercise_name: exercise.name.trim(),
         set_number: index + 1,
-        reps: numberOrUndefined(exercise.repsInput),
+        reps: prescribedRepsOrUndefined(exercise.repsInput),
         ...parseWeightInput(exercise.weightInput),
         is_warmup: false,
         notes: buildSetNotes(exercise),

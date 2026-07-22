@@ -738,6 +738,41 @@ export async function advancePhaseInStore(next: TrainingPhase): Promise<void> {
   if (insertError) logSupabaseError("advancePhaseInStore insert failed", insertError);
 }
 
+export async function activatePhaseInStore(userId: string, phaseId: string): Promise<TrainingPhase | null> {
+  if (isDemo()) {
+    const { storeActivatePhase } = await import("@/lib/store");
+    return storeActivatePhase(userId, phaseId);
+  }
+  if (!isValidUuid(userId)) return null;
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data: target } = await supabase.from("training_phases").select("*").eq("user_id", userId).eq("id", phaseId).maybeSingle();
+  if (!target) return null;
+  const { error: deactivateError } = await supabase.from("training_phases").update({ is_active: false }).eq("user_id", userId);
+  if (deactivateError) return null;
+  const { data, error } = await supabase.from("training_phases").update({ is_active: true }).eq("user_id", userId).eq("id", phaseId).select("*").single();
+  if (error) return null;
+  return data;
+}
+
+export async function updatePhaseInStore(userId: string, phaseId: string, patch: Partial<Pick<TrainingPhase, "name" | "description" | "end_date" | "rep_range_low" | "rep_range_high">>): Promise<TrainingPhase | null> {
+  const safePatch = {
+    ...patch,
+    rep_range_low: patch.rep_range_low === undefined ? undefined : Math.max(1, Math.min(10, patch.rep_range_low)),
+    rep_range_high: patch.rep_range_high === undefined ? undefined : Math.max(1, Math.min(10, patch.rep_range_high)),
+  };
+  if (isDemo()) {
+    const { storeUpdatePhase } = await import("@/lib/store");
+    return storeUpdatePhase(userId, phaseId, safePatch);
+  }
+  if (!isValidUuid(userId)) return null;
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("training_phases").update(safePatch).eq("user_id", userId).eq("id", phaseId).select("*").single();
+  if (error) return null;
+  return data;
+}
+
 export async function createDefaultActivePhase(phase: TrainingPhase): Promise<TrainingPhase | null> {
   if (isDemo()) {
     const { storeAdvancePhase } = await import("@/lib/store");

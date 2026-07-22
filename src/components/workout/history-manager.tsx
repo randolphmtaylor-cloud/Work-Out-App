@@ -123,6 +123,7 @@ export function HistoryManager({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setSessions(initialSessions);
@@ -390,50 +391,53 @@ export function HistoryManager({
         return (
           <div key={month}>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{monthName}</h2>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {monthSessions.map((session) => (
                 <Card key={session.id} className="transition-colors hover:border-zinc-300 dark:hover:border-zinc-600">
-                  <CardContent className="py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1.5 flex items-center gap-2">
-                          <Calendar className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
-                          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{formatDisplay(session.date)}</span>
-                          {session.duration_minutes && (
-                            <span className="flex items-center gap-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                              <Clock className="h-3 w-3" />
-                              {session.duration_minutes}m
-                            </span>
-                          )}
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-start">
+                      <div className="min-w-0">
+                        <div className="flex items-start justify-between gap-3 md:block">
+                          <span className="whitespace-nowrap text-base font-semibold text-zinc-900 dark:text-zinc-100">{formatDisplay(session.date)}</span>
+                          <Badge variant={session.notes?.includes("Home Workout") ? "home" : "outline"} className="shrink-0 text-xs md:mt-2">
+                            {sessionLabel(session)}
+                          </Badge>
                         </div>
-
-                        {session.exercises.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {session.exercises.slice(0, 6).map((ex) => (
-                              <span key={ex} className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                                {ex}
-                              </span>
-                            ))}
-                            {session.exercises.length > 6 && (
-                              <span className="px-1 text-xs text-zinc-400 dark:text-zinc-500">+{session.exercises.length - 6} more</span>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-zinc-400 dark:text-zinc-500">No exercises recorded</p>
-                        )}
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{session.duration_minutes ? `${session.duration_minutes} min` : "Duration not logged"}</span>
+                          <span className="flex items-center gap-1"><Dumbbell className="h-3.5 w-3.5" />{session.sets.length} sets</span>
+                        </div>
                       </div>
 
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        <Badge variant={session.notes?.includes("Home Workout") ? "home" : "outline"} className="text-xs">
-                          {sessionLabel(session)}
-                        </Badge>
-                        {session.sets.length > 0 && (
-                          <span className="flex items-center gap-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                            <Dumbbell className="h-3 w-3" />
-                            {session.sets.length} sets
-                          </span>
-                        )}
-                        <div className="flex flex-wrap justify-end gap-2">
+                      <div className="min-w-0">
+                        {session.exercises.length > 0 ? (
+                          <>
+                            <div className="flex flex-wrap gap-1.5">
+                              {session.exercises.slice(0, expandedIds.has(session.id) ? undefined : 4).map((ex) => (
+                                <span key={ex} className="max-w-full rounded-full bg-zinc-100 px-2.5 py-1 text-xs leading-4 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                  {ex}
+                                </span>
+                              ))}
+                            </div>
+                            {session.exercises.length > 4 && (
+                              <button
+                                type="button"
+                                className="mt-2 min-h-8 rounded-md px-1 text-xs font-medium text-indigo-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-400"
+                                onClick={() => setExpandedIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(session.id)) next.delete(session.id); else next.add(session.id);
+                                  return next;
+                                })}
+                                aria-expanded={expandedIds.has(session.id)}
+                              >
+                                {expandedIds.has(session.id) ? "Show less" : `+${session.exercises.length - 4} more exercises`}
+                              </button>
+                            )}
+                          </>
+                        ) : <p className="text-sm text-zinc-400 dark:text-zinc-500">No exercises recorded</p>}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3 md:justify-end md:border-0 md:pt-0">
                           <Button type="button" size="sm" variant="outline" onClick={() => copyExport(session)} disabled={copiedId === session.id}>
                             {copiedId === session.id ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Clipboard className="h-3.5 w-3.5" />}
                             {copiedId === session.id ? "Copied" : "Copy Export"}
@@ -446,7 +450,6 @@ export function HistoryManager({
                             {deletingId === session.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                             Delete
                           </Button>
-                        </div>
                       </div>
                     </div>
                   </CardContent>

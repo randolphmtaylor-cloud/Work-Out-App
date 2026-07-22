@@ -7,7 +7,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <Sidebar initialAuthStatus={authStatus} />
-      <main className="flex-1 min-w-0 pb-20 md:pb-0">
+      <main className="min-w-0 flex-1 pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:pb-0">
         {children}
       </main>
       <BottomNav />
